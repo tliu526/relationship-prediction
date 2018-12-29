@@ -1,9 +1,15 @@
 CS120/*
 App\ Usage\ Mental\ Health\ Study/*
-*.png
 *.docx
 *.df
 *.pyc
 *-checkpoint.ipynb
 *.xml
 *.iml
+*.bbl
+*.blg
+*.fls
+*.log
+*.synctex.gz
+*.aux
+*latexmk
