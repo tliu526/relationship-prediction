@@ -10,7 +10,7 @@ All functions take as input a Dataframe with the following columns:
 - hour: int
 - hour_wk: int
 
-# TODO turn DataFrame into a class for better contract?
+TODO turn DataFrame into a class for better contract?
 """
 
 import pandas as pd
@@ -35,6 +35,7 @@ def comm_feature_extract(comm_df, ema_df):
     comm_features = init_feature_df(comm_df)
     comm_features = build_count_features(comm_features, call_df, sms_df, ema_df)
     comm_features = build_temporal_features(comm_features, call_df, sms_df)
+    comm_features = build_channel_selection_features(comm_features, comm_df)
 
     return comm_features
 
@@ -42,6 +43,11 @@ def init_feature_df(raw_df):
     """Initializes the processed feature dataframe from raw_df.
 
     Should be the first feature transformation method called.
+
+    Features created:
+    - total_comms
+    - total_comm_days
+    - contact_type
     """
     comm_group = raw_df.groupby(['pid', 'combined_hash'])
 
@@ -54,13 +60,14 @@ def init_feature_df(raw_df):
     # build total comm days
     comm_features['total_comm_days'] = comm_group['date_days'].nunique()
 
-    # insert contact type
+    # insert contact_type feature
     single_contacts = raw_df.drop_duplicates('combined_hash')
     comm_features = comm_features.merge(single_contacts[['pid', 'combined_hash', 'contact_type']], 
                                       on=['pid', 'combined_hash'], 
                                       how='outer')
 
     comm_features = comm_features.set_index(['pid', 'combined_hash'])
+    
     return comm_features
 
 
@@ -68,7 +75,16 @@ def build_count_features(comm_features, call_df, sms_df, ema_df):
     """Returns comm_features with count features built from sms, call dfs.
 
     ema_df supplies the total number of days each participant is in the study.
-    Regularity features are derived from counts
+    Regularity features are derived from counts.
+
+    Features created:
+    - total_calls
+    - total_sms
+    - total_call_days
+    - total_sms_days
+    - reg_call: regularity of calls, total_call_days / total_days
+    - reg_sms: regularity of sms, total_sms_days / total_days
+    - reg_comm: regularity of communication, total_comm_days / total_days
     """
     call_group = call_df.groupby(['pid', 'combined_hash'])
     sms_group = sms_df.groupby(['pid', 'combined_hash'])
@@ -76,7 +92,9 @@ def build_count_features(comm_features, call_df, sms_df, ema_df):
     sms_counts = sms_group['contact_type'].count()
     call_counts = call_group['contact_type'].count()
     comm_features['total_calls'] = call_counts
+    comm_features['total_calls'] = comm_features['total_calls'].fillna(0)
     comm_features['total_sms'] = sms_counts
+    comm_features['total_sms'] = comm_features['total_sms'].fillna(0)
 
     comm_features['total_sms_days'] = \
         sms_df.groupby(['pid', 'combined_hash'])['date_days'].nunique()
@@ -137,11 +155,19 @@ def build_temporal_features(comm_features, call_df, sms_df):
     time_of_day_sms = temporal_tendency_helper(sms_df, 'time_of_day', 'sms')
     day_of_week_sms = temporal_tendency_helper(sms_df, 'day', 'sms')
 
-    comm_features = comm_features.merge(time_of_day_calls, on=['pid', 'combined_hash'], how='outer')
-    comm_features = comm_features.merge(day_of_week_calls, on=['pid', 'combined_hash'], how='outer')
+    comm_features = comm_features.merge(time_of_day_calls, 
+                                        on=['pid', 'combined_hash'], 
+                                        how='outer')
+    comm_features = comm_features.merge(day_of_week_calls, 
+                                        on=['pid', 'combined_hash'], 
+                                        how='outer')
 
-    comm_features = comm_features.merge(time_of_day_sms, on=['pid', 'combined_hash'], how='outer')
-    comm_features = comm_features.merge(day_of_week_sms, on=['pid', 'combined_hash'], how='outer')
+    comm_features = comm_features.merge(time_of_day_sms, 
+                                        on=['pid', 'combined_hash'], 
+                                        how='outer')
+    comm_features = comm_features.merge(day_of_week_sms, 
+                                        on=['pid', 'combined_hash'], 
+                                        how='outer')
 
     return comm_features
 
@@ -154,12 +180,26 @@ def build_channel_selection_features(comm_features, raw_df):
     - call count / total comm
 
     """
-    comm_group = raw_df.groupby(['pid', 'combined_hash', 'comm_direction'], as_index=False).size().unstack(level=-1, fill_value=0)
+    comm_group = raw_df.groupby(['pid', 'combined_hash', 'comm_direction'], 
+                                as_index=False).size().unstack(level=-1, fill_value=0)
     comm_group = comm_group.reset_index()
     
-    temp_df = comm_features.merge(comm_group[['pid', 'combined_hash','OUTGOING']], on=['pid', 'combined_hash'], how='outer')
+    temp_df = comm_features.merge(comm_group[['pid', 'combined_hash','OUTGOING']], 
+                                  on=['pid', 'combined_hash'], 
+                                  how='outer')
     comm_features['out_comm'] = temp_df['OUTGOING'] / temp_df['total_comms']
 
-    comm_features['call_channel'] = comm_features['total_calls'] / comm_features['total_comms']
+    comm_features['call_tendency'] = comm_features['total_calls'] / comm_features['total_comms']
 
     return comm_features
+
+
+def build_avoidance_features(comm_features, raw_df):
+    """Returns comm_features with avoidance features.
+
+    Features:
+    - missed call / {in, out} calls
+    - in texts / out texts
+    """
+
+    

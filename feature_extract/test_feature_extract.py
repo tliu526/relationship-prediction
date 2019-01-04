@@ -1,7 +1,15 @@
-"""Unit tests for feature extraction methods."""
+"""Unit tests for feature extraction methods.
+
+
+Test contact hashes are:
+['1002060a7f4fe408f8137f12982e5d64cf34693',
+'10413044ad5f1183e38f5ddf17259326e976231']
+
+"""
 
 import datetime
 import os
+import pickle
 
 import numpy as np
 import pandas as pd
@@ -11,46 +19,39 @@ from feature_extract import *
 
 class FeatureExtractTests(unittest.TestCase):
     
-    raw_df = pd.DataFrame()
-    
     def setUp(self):
-        pass
+        self.pid1 = '1002060'
+        self.pid2 = '1041304'
+
+        self.combined_hash1 = '1002060a7f4fe408f8137f12982e5d64cf34693'
+        self.combined_hash2 = '10413044ad5f1183e38f5ddf17259326e976231'
+
+        self.raw_df = pickle.load(open("../data/test_comm.df", 'rb'))
+        
+        # # combined hash counts
+        # self.num_a1 = 3
+        # self.num_a2 = 2
+        # self.num_b1 = 4
+        # self.num_b2 = 1
+
+        # self.raw_df = pd.DataFrame(columns=['pid', 'combined_hash', 'contact_type'])
+        # self.raw_df['pid'] = ['a']*5 + ['b']*5
+        # self.raw_df['combined_hash'] = ['a1'] * self.num_a1 + ['a2'] * self.num_a2 + \
+        #                                ['b1'] * self.num_b1 + ['b2'] * self.num_b2
+        # self.raw_df['contact_type'] = ['family_live_together'] * self.num_a1 + \
+        #                               ['family_live_separate'] * self.num_a2 + \
+        #                               ['work'] * self.num_b1 + \
+        #                               ['friend'] * self.num_b2
+        # self.raw_df['date_days'] = [datetime.datetime(2018,1,x) for x in range(1, self.num_a1 + 1)] + \
+        #                            [datetime.datetime(2018,1,x) for x in range(1, self.num_a2 + 1)] + \
+        #                            [datetime.datetime(2018,1,1)] * self.num_b1 + \
+        #                            [datetime.datetime(2018,1,1)]
+
     
     def test_init_feature_df(self):
-
-        # combined hash counts
-        num_a1 = 3
-        num_a2 = 2
-        num_b1 = 4
-        num_b2 = 1
-
-        raw_df = pd.DataFrame(columns=['pid', 'combined_hash', 'contact_type'])
-        raw_df['pid'] = ['a']*5 + ['b']*5
-        raw_df['combined_hash'] = ['a1'] * num_a1 + ['a2'] * num_a2 + \
-                                  ['b1'] * num_b1 + ['b2'] * num_b2
-        raw_df['contact_type'] = ['family_live_together'] * num_a1 + \
-                                 ['family_live_separate'] * num_a2 + \
-                                 ['work'] * num_b1 + \
-                                 ['friend'] * num_b2
-        raw_df['date_days'] = [datetime.datetime(2018,1,x) for x in range(1,num_a1 + 1)] + \
-                              [datetime.datetime(2018,1,x) for x in range(1,num_a2 + 1)] + \
-                              [datetime.datetime(2018,1,1)] * num_b1 + \
-                              [datetime.datetime(2018,1,1)]
-                              
-
-
-        """
-        the gewse sat on de toilet and made a beeeeeeeeeeg boom at clogged de toilet
-        de gewse den sat on her gewse and made a beeeeeeeeeg tewt
-        de gewse den sat on her gewse and berk de beep boop code 
-        eheheehekslhfksdhferheejeehejejeheeuehrughughehehughggueheueuehueheueheue
-        """
-
         expected_dict = {
-            ('a', 'a1'): [num_a1, num_a1, 'family_live_together'],
-            ('a', 'a2'): [num_a2, num_a2, 'family_live_separate'],
-            ('b', 'b1'): [num_b1, 1, 'work'],
-            ('b', 'b2'): [num_b2, 1, 'friend']
+            (self.pid1, self.combined_hash1): [8, 2, 'friend'],
+            (self.pid2, self.combined_hash2): [6, 3, 'family_live_together']
         }
 
         expected_df = pd.DataFrame.from_dict(expected_dict).T
@@ -63,7 +64,7 @@ class FeatureExtractTests(unittest.TestCase):
                                          axis='columns')
         expected_df['total_comms'] = expected_df['total_comms'].astype(int)
         expected_df['total_comm_days'] = expected_df['total_comm_days'].astype(int)
-        actual_df = init_feature_df(raw_df)
+        actual_df = init_feature_df(self.raw_df)
 
         pd.testing.assert_frame_equal(actual_df, expected_df)
     
@@ -72,6 +73,8 @@ class FeatureExtractTests(unittest.TestCase):
         """
         TODO make sure to check the NaN cases
         """
+        # total_calls, total_sms, total_sms_days, total_call_days, total_days, reg_calls, reg_sms, reg_comm
+
 
 if __name__ == '__main__':
     unittest.main()
