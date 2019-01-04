@@ -39,7 +39,7 @@ def comm_feature_extract(comm_df, ema_df):
     return comm_features
 
 def init_feature_df(raw_df):
-    """initializes the final feature dataframe from raw_df.
+    """Initializes the processed feature dataframe from raw_df.
 
     Should be the first feature transformation method called.
     """
@@ -60,24 +60,34 @@ def init_feature_df(raw_df):
                                       on=['pid', 'combined_hash'], 
                                       how='outer')
 
+    comm_features = comm_features.set_index(['pid', 'combined_hash'])
     return comm_features
 
 
-def build_count_features(comm_features, sms_df, call_df, ema_df):
+def build_count_features(comm_features, call_df, sms_df, ema_df):
     """Returns comm_features with count features built from sms, call dfs.
 
     ema_df supplies the total number of days each participant is in the study.
     Regularity features are derived from counts
     """
-    
+    call_group = call_df.groupby(['pid', 'combined_hash'])
+    sms_group = sms_df.groupby(['pid', 'combined_hash'])
+
+    sms_counts = sms_group['contact_type'].count()
+    call_counts = call_group['contact_type'].count()
+    comm_features['total_calls'] = call_counts
+    comm_features['total_sms'] = sms_counts
+
     comm_features['total_sms_days'] = \
         sms_df.groupby(['pid', 'combined_hash'])['date_days'].nunique()
+    comm_features['total_sms_days'] = comm_features['total_sms_days'].fillna(0)
     comm_features['total_call_days'] = \
         call_df.groupby(['pid', 'combined_hash'])['date_days'].nunique()
+    comm_features['total_call_days'] = comm_features['total_call_days'].fillna(0)
     comm_features = comm_features.reset_index()
 
     # build total logged days for each participant
-    total_recorded_days = emm_df.groupby('pid')['date'].nunique()
+    total_recorded_days = ema_df.groupby('pid')['date'].nunique()
     comm_features['total_days'] = comm_features.apply(lambda x: total_recorded_days[x.pid], 
                                                       axis=1)
 
@@ -103,7 +113,9 @@ def temporal_tendency_helper(df, group_col, comm_label):
     column names will be (group_col + temporal_index + comm_label)
     Returns a df with the extracted features
     """
-    temp_tendency_df = df.groupby(['pid', 'combined_hash', group_col], as_index=False).size().unstack(level=-1, fill_value=0)
+    # TODO figure out indentation
+    temp_tendency_df = df.groupby(['pid', 'combined_hash', group_col], 
+                                  as_index=False).size().unstack(level=-1, fill_value=0)
     cols = [x for x in range(len(temp_tendency_df.columns.values))]
     temp_tendency_df = temp_tendency_df.reset_index()
     
@@ -115,7 +127,7 @@ def temporal_tendency_helper(df, group_col, comm_label):
     
     return temp_tendency_df
 
-def build_temporal_features(comm_df, call_df, sms_df):
+def build_temporal_features(comm_features, call_df, sms_df):
     """Returns comm_features with temporal tendency features.
 
     """
@@ -130,5 +142,24 @@ def build_temporal_features(comm_df, call_df, sms_df):
 
     comm_features = comm_features.merge(time_of_day_sms, on=['pid', 'combined_hash'], how='outer')
     comm_features = comm_features.merge(day_of_week_sms, on=['pid', 'combined_hash'], how='outer')
+
+    return comm_features
+
+
+def build_channel_selection_features(comm_features, raw_df):
+    """Returns comm_features with channel selection features.
+
+    Features:
+    - out comm / total comm
+    - call count / total comm
+
+    """
+    comm_group = raw_df.groupby(['pid', 'combined_hash', 'comm_direction'], as_index=False).size().unstack(level=-1, fill_value=0)
+    comm_group = comm_group.reset_index()
+    
+    temp_df = comm_features.merge(comm_group[['pid', 'combined_hash','OUTGOING']], on=['pid', 'combined_hash'], how='outer')
+    comm_features['out_comm'] = temp_df['OUTGOING'] / temp_df['total_comms']
+
+    comm_features['call_channel'] = comm_features['total_calls'] / comm_features['total_comms']
 
     return comm_features

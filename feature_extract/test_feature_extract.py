@@ -61,12 +61,17 @@ class FeatureExtractTests(unittest.TestCase):
                                             2: "contact_type"
                                          }, 
                                          axis='columns')
-        expected_df = expected_df.reset_index()
         expected_df['total_comms'] = expected_df['total_comms'].astype(int)
         expected_df['total_comm_days'] = expected_df['total_comm_days'].astype(int)
         actual_df = init_feature_df(raw_df)
 
         pd.testing.assert_frame_equal(actual_df, expected_df)
+    
+    
+    def test_build_count_features(self):
+        """
+        TODO make sure to check the NaN cases
+        """
 
 if __name__ == '__main__':
     unittest.main()
