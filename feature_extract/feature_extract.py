@@ -19,10 +19,7 @@ import pandas as pd
 DAY_DIVISOR = 4  # 6 hour chunks
 
 def comm_feature_extract(comm_df, ema_df):
-    """Generates a DataFrame with extracted comm features, one contact per row
-
-    params:
-    df: an input DataFrame as described above
+    """Generates a DataFrame with extracted comm features, one contact per row.
 
     returns: the DataFrame comm_features
     """
@@ -35,6 +32,7 @@ def comm_feature_extract(comm_df, ema_df):
 
     comm_features = init_feature_df(comm_df)
     comm_features = build_count_features(comm_features, call_df, sms_df, ema_df)
+    comm_features = build_intensity_features(comm_features, call_df, sms_df)
     comm_features = build_temporal_features(comm_features, call_df, sms_df)
     comm_features = build_channel_selection_features(comm_features, comm_df)
     comm_features = build_avoidance_features(comm_features, call_df, sms_df)
@@ -117,24 +115,86 @@ def build_count_features(comm_features, call_df, sms_df, ema_df):
 
     return comm_features
 
+def intensity_helper(comm_features, group_df, col, name):
+    """Helper function for build_intensity_features for calculating mean and std.
 
-def build_intensity_features(comm_features, raw_df):
-    """Returns feature_df with intensity features extracted from raw_df
-    TODO look up tiling start date/end date
-    TODO min/max date within groupbys?
+    Feature names will become {mean, std}_{name}
+    """
+    # mean calculation
+    mean_name = 'mean_' + name
+    comm_sum = group_df.groupby(['pid', 'combined_hash'], as_index=False)[col].sum()
+    temp_df = comm_features.merge(comm_sum, on=['pid', 'combined_hash'], how='outer')
+    temp_df[mean_name] = temp_df[col] / temp_df['total_days']
+
+    mean_d = pd.Series(temp_df[mean_name].values,index=temp_df['combined_hash']).to_dict()
+    days_d = pd.Series(temp_df['total_days'].values,index=temp_df['pid']).to_dict()
+
+    # std calculation
+    std_name = 'std_' + name
+
+    # calculate squared sum difference of logged communications 
+    group_df['mean_in'] = group_df['combined_hash'].map(mean_d)
+    group_df['total_days'] = group_df['pid'].map(days_d)
+    group_df['ssum'] = (group_df[col] - group_df['mean_in'])**2
+
+    # calculate ssum over delta days (days in the study w/o communication)
+    day_group = group_df.groupby(['pid', 'combined_hash'], as_index=False)
+    ssum_count = day_group['ssum'].count().copy()
+    ssum_count = ssum_count.rename({'ssum': 'ssum_count'}, axis='columns')
+    ssum_count['delta_days'] = ssum_count['pid'].map(days_d) - ssum_count['ssum_count']
+    ssum_count['delta_ssum'] = ((ssum_count['combined_hash'].map(mean_d))**2) * ssum_count['delta_days']
+    
+    # add ssum and delta_ssum and calculate std
+    ssum_count['ssum'] = day_group['ssum'].sum()['ssum']
+    ssum_count['total_ssum'] = ssum_count['delta_ssum'] + ssum_count['ssum']
+    temp_df = temp_df.merge(ssum_count[['pid', 'combined_hash', 'total_ssum']], on=['pid', 'combined_hash'], how='outer')
+    temp_df[std_name] = np.sqrt(temp_df['total_ssum'] / (temp_df['total_days'] - 1))
+
+    # TODO verify that we want to zero out NaNs
+    temp_df = temp_df.fillna(0) 
+
+    comm_features[[mean_name, std_name]] = temp_df[[mean_name, std_name]]
+
+    return comm_features
+
+
+def build_intensity_features(comm_features, call_df, sms_df):
+    """Returns feature_df with intensity features extracted from call_df, sms_df.
+    
+    Should be called after build_count_features
 
     Features created:
-    - {avg, std} {out, in} {call, sms} per study day
+    - {mean, std} {out, in} {call, sms} per study day
     """
-    pass
+    call_group = call_df.groupby(['pid', 'combined_hash', 'date_days', 'comm_direction'], 
+                                 as_index=False).size().unstack(level=-1, fill_value=0)
+    call_group = call_group.reset_index()
+
+    if 'INCOMING' in call_group.columns:
+        comm_features = intensity_helper(comm_features, call_group, 'INCOMING', 'in_call')
+    if 'OUTGOING' in call_group.columns:
+        comm_features = intensity_helper(comm_features, call_group, 'OUTGOING', 'out_call')
+
+    sms_group = sms_df.groupby(['pid', 'combined_hash', 'date_days', 'comm_direction'], 
+                                 as_index=False).size().unstack(level=-1, fill_value=0)
+    sms_group = sms_group.reset_index()
+
+    if 'INCOMING' in sms_group.columns:
+        comm_features = intensity_helper(comm_features, sms_group, 'INCOMING', 'in_sms')
+    
+    if 'OUTGOING' in sms_group.columns:
+        comm_features = intensity_helper(comm_features, sms_group, 'OUTGOING', 'out_sms')
+    
+    return comm_features    
     
 
 def temporal_tendency_helper(df, group_col, comm_label):
     """Convenience function for extracting temporal tendency features.
+    
     column names will be (group_col + temporal_index + comm_label)
+
     Returns a df with the extracted features
     """
-    # TODO figure out indentation
     temp_tendency_df = df.groupby(['pid', 'combined_hash', group_col], 
                                   as_index=False).size().unstack(level=-1, fill_value=0)
     cols = [x for x in range(len(temp_tendency_df.columns.values))]
@@ -152,8 +212,8 @@ def build_temporal_features(comm_features, call_df, sms_df):
     """Returns comm_features with temporal tendency features.
 
     Features created:
-    - # {call, sms} at {time of day, day of week} / total
-
+    - time_of_day_{0-5}_{call, sms}: # {call, sms} at time of day / total
+    - day_{0-6}_{call, sms}: # {call, sms} at day of week / total
     """
     time_of_day_calls = temporal_tendency_helper(call_df, 'time_of_day', 'calls')
     day_of_week_calls = temporal_tendency_helper(call_df, 'day', 'calls')
@@ -182,9 +242,8 @@ def build_channel_selection_features(comm_features, raw_df):
     """Returns comm_features with channel selection features.
 
     Features created:
-    - out comm / total comm
-    - call count / total comm
-
+    - out_comm: out comm / total comm
+    - call_tendency: call count / total comm
     """
     comm_group = raw_df.groupby(['pid', 'combined_hash', 'comm_direction'], 
                                 as_index=False).size().unstack(level=-1, fill_value=0)
@@ -239,6 +298,8 @@ def build_avoidance_features(comm_features, call_df, sms_df):
         sms_group[['pid', 'combined_hash','in_out_sms']], 
         on=['pid', 'combined_hash'], 
         how='outer')
+
+    comm_features = comm_features.replace([np.inf, -np.inf], np.nan)
     
     return comm_features
     

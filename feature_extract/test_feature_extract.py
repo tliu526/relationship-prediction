@@ -34,6 +34,7 @@ class FeatureExtractTests(unittest.TestCase):
         with open("../data/test_emm.df", 'rb') as emm_file:
             self.emm_df = pickle.load(emm_file)
     
+
     def test_init_feature_df(self):
         expected_dict = {
             (self.pid1, self.combined_hash1): [8, 2, 'friend'],
@@ -56,11 +57,6 @@ class FeatureExtractTests(unittest.TestCase):
     
 
     def test_build_count_features(self):
-        """
-        TODO figure out best way to handle pandas dtype checking
-        - can only test DataFrame subsets
-        """
-
         actual_df = init_feature_df(self.raw_df)
         actual_df = build_count_features(actual_df, 
                                          self.call_df, 
@@ -90,14 +86,27 @@ class FeatureExtractTests(unittest.TestCase):
 
         pd.testing.assert_frame_equal(actual_df, expected_df, check_dtype=False)
 
-    @unittest.skip("TODO implement")
+
     def test_build_intensity_features(self):
-        pass
+        # TODO test these: 'mean_in_call', 'std_in_call'
+        columns = ['mean_out_call', 'std_out_call', 'mean_in_sms', 'std_in_sms',
+                   'mean_out_sms', 'std_out_sms']
+
+        expected_dict = {
+            0:  [] # TODO
+        }
+
+        actual_df = init_feature_df(self.raw_df)
+        actual_df = build_count_features(actual_df, self.call_df, self.sms_df,
+                                         self.emm_df)
+        actual_df = build_intensity_features(actual_df, self.call_df, self.sms_df)
+        print(actual_df[columns])
 
     @unittest.skip("TODO implement")
     def test_temporal_tendency_helper(self):
         pass
-    
+
+
     @unittest.skip("TODO implement")
     def test_build_temporal_features(self):
         pass
