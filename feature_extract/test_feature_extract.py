@@ -102,10 +102,24 @@ class FeatureExtractTests(unittest.TestCase):
     def test_build_temporal_features(self):
         pass
 
-    @unittest.skip("TODO implement")
     def test_build_channel_selection_features(self):
-        pass
+        columns = ['out_comm', 'call_tendency']
 
+        expected_dict = {
+            0: [2/8, 0],
+            1: [4/6, 1]
+        }
+
+        expected_df = pd.DataFrame.from_dict(expected_dict).T
+        expected_df.columns = columns        
+
+        actual_df = init_feature_df(self.raw_df)
+        actual_df = build_count_features(actual_df, self.call_df, self.sms_df,
+                                         self.emm_df)
+        actual_df = build_channel_selection_features(actual_df, self.raw_df)
+
+        pd.testing.assert_frame_equal(actual_df[columns], expected_df)         
+    
     
     def test_build_avoidance_features(self):
         columns = ['missed_in_calls', 'missed_out_calls', 'in_out_sms']
