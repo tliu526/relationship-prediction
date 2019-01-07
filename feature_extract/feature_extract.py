@@ -13,6 +13,7 @@ All functions take as input a Dataframe with the following columns:
 TODO turn DataFrame into a class for better contract?
 """
 
+import numpy as np
 import pandas as pd
 
 DAY_DIVISOR = 4  # 6 hour chunks
@@ -36,6 +37,7 @@ def comm_feature_extract(comm_df, ema_df):
     comm_features = build_count_features(comm_features, call_df, sms_df, ema_df)
     comm_features = build_temporal_features(comm_features, call_df, sms_df)
     comm_features = build_channel_selection_features(comm_features, comm_df)
+    comm_features = build_avoidance_features(comm_features, call_df, sms_df)
 
     return comm_features
 
@@ -120,11 +122,12 @@ def build_intensity_features(comm_features, raw_df):
     """Returns feature_df with intensity features extracted from raw_df
     TODO look up tiling start date/end date
     TODO min/max date within groupbys?
+
+    Features created:
+    - {avg, std} {out, in} {call, sms} per study day
     """
-
-
-
-    return feature_df
+    pass
+    
 
 def temporal_tendency_helper(df, group_col, comm_label):
     """Convenience function for extracting temporal tendency features.
@@ -147,6 +150,9 @@ def temporal_tendency_helper(df, group_col, comm_label):
 
 def build_temporal_features(comm_features, call_df, sms_df):
     """Returns comm_features with temporal tendency features.
+
+    Features created:
+    - # {call, sms} at {time of day, day of week} / total
 
     """
     time_of_day_calls = temporal_tendency_helper(call_df, 'time_of_day', 'calls')
@@ -175,7 +181,7 @@ def build_temporal_features(comm_features, call_df, sms_df):
 def build_channel_selection_features(comm_features, raw_df):
     """Returns comm_features with channel selection features.
 
-    Features:
+    Features created:
     - out comm / total comm
     - call count / total comm
 
@@ -194,12 +200,49 @@ def build_channel_selection_features(comm_features, raw_df):
     return comm_features
 
 
-def build_avoidance_features(comm_features, raw_df):
+def build_avoidance_features(comm_features, call_df, sms_df):
     """Returns comm_features with avoidance features.
 
-    Features:
-    - missed call / {in, out} calls
-    - in texts / out texts
+    Features created:
+    - missed_{in, out}_calls: missed call / {in, out} calls
+    - in_out_sms: in texts / out texts
     """
+    call_group = call_df.groupby(['pid', 'combined_hash', 'comm_direction'], 
+                                 as_index=False).size().unstack(level=-1, fill_value=0)
+    call_group = call_group.reset_index()
+    
+    if ('INCOMING' in call_group.columns) and ('MISSED' in call_group.columns):
+        call_group['missed_in_calls'] = call_group['MISSED'] / call_group['INCOMING']
+    else:
+        call_group['missed_in_calls'] = np.nan
+
+    if ('OUTGOING' in call_group.columns) and ('MISSED' in call_group.columns):
+        call_group['missed_out_calls'] = call_group['MISSED'] / call_group['OUTGOING']
+    else:
+        call_group['missed_out_calls'] = np.nan
+
+    sms_group = sms_df.groupby(['pid', 'combined_hash', 'comm_direction'], 
+                               as_index=False).size().unstack(level=-1, fill_value=0)
+    sms_group = sms_group.reset_index()
+
+    if ('OUTGOING' in sms_group.columns) and ('INCOMING' in sms_group.columns):
+        sms_group['in_out_sms'] = sms_group['INCOMING'] / sms_group['OUTGOING']
+    else:
+        sms_group['in_out_sms'] = np.nan
+    
+    comm_features = comm_features.merge(
+        call_group[['pid', 'combined_hash','missed_in_calls', 'missed_out_calls']], 
+        on=['pid', 'combined_hash'], 
+        how='outer')
+    
+    comm_features = comm_features.merge(
+        sms_group[['pid', 'combined_hash','in_out_sms']], 
+        on=['pid', 'combined_hash'], 
+        how='outer')
+    
+    return comm_features
+    
+    
+
 
     
