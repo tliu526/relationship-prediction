@@ -32,8 +32,8 @@ def comm_feature_extract(comm_df, ema_df):
 
     comm_features = init_feature_df(comm_df)
     comm_features = build_count_features(comm_features, call_df, sms_df, ema_df)
-    comm_features = build_intensity_features(comm_features, call_df, sms_df)
     comm_features = build_temporal_features(comm_features, call_df, sms_df)
+    comm_features = build_intensity_features(comm_features, call_df, sms_df)
     comm_features = build_channel_selection_features(comm_features, comm_df)
     comm_features = build_avoidance_features(comm_features, call_df, sms_df)
 
@@ -115,6 +115,7 @@ def build_count_features(comm_features, call_df, sms_df, ema_df):
 
     return comm_features
 
+
 def intensity_helper(comm_features, group_df, col, name):
     """Helper function for build_intensity_features for calculating mean and std.
 
@@ -150,8 +151,8 @@ def intensity_helper(comm_features, group_df, col, name):
     temp_df = temp_df.merge(ssum_count[['pid', 'combined_hash', 'total_ssum']], on=['pid', 'combined_hash'], how='outer')
     temp_df[std_name] = np.sqrt(temp_df['total_ssum'] / (temp_df['total_days'] - 1))
 
-    # TODO verify that we want to zero out NaNs
-    temp_df = temp_df.fillna(0) 
+    # TODO zero out NaNs here because of zero counts
+    # temp_df = temp_df.fillna(0) 
 
     comm_features[[mean_name, std_name]] = temp_df[[mean_name, std_name]]
 
@@ -200,12 +201,15 @@ def temporal_tendency_helper(df, group_col, comm_label):
     cols = [x for x in range(len(temp_tendency_df.columns.values))]
     temp_tendency_df = temp_tendency_df.reset_index()
     
-    tot_calls = temp_tendency_df[cols].sum(axis=1)
-    temp_tendency_df[cols] = temp_tendency_df[cols].div(tot_calls, axis=0)
+    tot_comms = temp_tendency_df[cols].sum(axis=1)
+    temp_tendency_df[cols] = temp_tendency_df[cols].div(tot_comms, axis=0)
     temp_tendency_df.set_index(['pid', 'combined_hash'], inplace=True)
     temp_tendency_df.rename(columns=lambda x: group_col + '_' + str(x) + '_' + comm_label, inplace=True)
     temp_tendency_df = temp_tendency_df.reset_index()
     
+    # fill divide by 0's with 0, TODO not propogating through after pd.merge()
+    # temp_tendency_df = temp_tendency_df.fillna(0)
+
     return temp_tendency_df
 
 def build_temporal_features(comm_features, call_df, sms_df):
@@ -221,6 +225,21 @@ def build_temporal_features(comm_features, call_df, sms_df):
     time_of_day_sms = temporal_tendency_helper(sms_df, 'time_of_day', 'sms')
     day_of_week_sms = temporal_tendency_helper(sms_df, 'day', 'sms')
 
+    # print(time_of_day_calls.isnull().any().sum())
+    # print(day_of_week_calls.isnull().any().sum())
+    # print(time_of_day_sms.isnull().any().sum())
+    # print(day_of_week_sms.isnull().any().sum())
+    
+    # print(time_of_day_calls.columns)
+
+    # comm_features = pd.merge(comm_features, time_of_day_calls, how='outer',
+    #                          left_on=['pid', 'combined_hash'], right_on=['pid', 'combined_hash'])
+    # comm_features = pd.merge(comm_features, day_of_week_calls, how='outer',
+    #                          left_on=['pid', 'combined_hash'], right_on=['pid', 'combined_hash'])
+    # comm_features = pd.merge(comm_features, time_of_day_sms, how='outer',
+    #                          left_on=['pid', 'combined_hash'], right_on=['pid', 'combined_hash'])                             
+    # comm_features = pd.merge(comm_features, day_of_week_sms, how='outer',
+    #                          left_on=['pid', 'combined_hash'], right_on=['pid', 'combined_hash'])
     comm_features = comm_features.merge(time_of_day_calls, 
                                         on=['pid', 'combined_hash'], 
                                         how='outer')
@@ -234,6 +253,9 @@ def build_temporal_features(comm_features, call_df, sms_df):
     comm_features = comm_features.merge(day_of_week_sms, 
                                         on=['pid', 'combined_hash'], 
                                         how='outer')
+
+    # for some reason, merge converts the zeros into nans
+    # comm_features = comm_features.fillna(0)
 
     return comm_features
 
@@ -303,6 +325,21 @@ def build_avoidance_features(comm_features, call_df, sms_df):
     
     return comm_features
     
+
+def build_nan_features(comm_features, fill_val=0):
+    """Adds additional feature columns for nans and fills NaNs with fill_val.
+
+    """
+    comm_indicator = comm_features.isnull().astype(int).add_suffix("_nan_indicator")
+    # keep indicator cols that correspond to cols with NaNs
+    comm_indicator = comm_indicator.loc[:, (comm_indicator.sum(axis=0) > 0)]
+
+    indicator_cols = comm_indicator.columns
+    comm_features[indicator_cols] = comm_indicator[indicator_cols]
+
+    comm_features = comm_features.fillna(fill_val)
+
+    return comm_features
     
 
 

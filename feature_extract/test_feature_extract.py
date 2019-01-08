@@ -87,13 +87,15 @@ class FeatureExtractTests(unittest.TestCase):
         pd.testing.assert_frame_equal(actual_df, expected_df, check_dtype=False)
 
 
+    @unittest.skip("TODO finish calculating std dev")
     def test_build_intensity_features(self):
         # TODO test these: 'mean_in_call', 'std_in_call'
         columns = ['mean_out_call', 'std_out_call', 'mean_in_sms', 'std_in_sms',
                    'mean_out_sms', 'std_out_sms']
 
         expected_dict = {
-            0:  [] # TODO
+            0: [0, 0, 6/58],
+            1: [] 
         }
 
         actual_df = init_feature_df(self.raw_df)
