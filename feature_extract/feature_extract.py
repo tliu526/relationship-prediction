@@ -232,14 +232,6 @@ def build_temporal_features(comm_features, call_df, sms_df):
     
     # print(time_of_day_calls.columns)
 
-    # comm_features = pd.merge(comm_features, time_of_day_calls, how='outer',
-    #                          left_on=['pid', 'combined_hash'], right_on=['pid', 'combined_hash'])
-    # comm_features = pd.merge(comm_features, day_of_week_calls, how='outer',
-    #                          left_on=['pid', 'combined_hash'], right_on=['pid', 'combined_hash'])
-    # comm_features = pd.merge(comm_features, time_of_day_sms, how='outer',
-    #                          left_on=['pid', 'combined_hash'], right_on=['pid', 'combined_hash'])                             
-    # comm_features = pd.merge(comm_features, day_of_week_sms, how='outer',
-    #                          left_on=['pid', 'combined_hash'], right_on=['pid', 'combined_hash'])
     comm_features = comm_features.merge(time_of_day_calls, 
                                         on=['pid', 'combined_hash'], 
                                         how='outer')
@@ -342,5 +334,42 @@ def build_nan_features(comm_features, fill_val=0):
     return comm_features
     
 
+def build_emc_features(comm_features, comm_df, emc_df, hash_dict, pr_dict):
+    """Adds emc_feature columns to comm_features.
 
-    
+    """
+    emc_df = emc_df.reset_index(drop=True)
+
+    canonical_dict = {}
+    for k,v in hash_dict.items():
+        if len(v) > 0:
+            canonical_dict[k] = v[0]
+
+    emc_dict = {}
+    emc_features = ['q1_want', 'q2_talk', 'q3_loan', 'q4_closeness']
+    for i in range(emc_df.shape[0]):
+        hash_name = emc_df.loc[i, 'contact_name']
+        if hash_name in hash_dict:
+            canonical_md5 = hash_dict[hash_name]
+            if len(canonical_md5) > 0 and canonical_md5[0] in pr_dict:
+                non_canonical_hashes = pr_dict[canonical_md5[0]]
+                for h in non_canonical_hashes:
+                    emcs = {}
+                    for col in emc_features:
+                        emcs[col] = emc_df.loc[i, col]
+                    emc_dict[h] = emcs      
+
+    emc_df['canonical_hash'] = emc_df['contact_name'].map(canonical_dict)
+    comm_df['emc_dict'] = comm_df['contact_number'].map(emc_dict)
+    combined_to_emc =  pd.Series(comm_df['emc_dict'].values,index=comm_df['combined_hash']).to_dict()
+
+    emc_features = pd.DataFrame(index=combined_to_emc.keys())
+    for combined_hash, q_dict in combined_to_emc.items():
+        for k,v in q_dict.items():
+            emc_features.loc[combined_hash, k] = v
+    emc_features.index.rename("combined_hash", inplace=True)
+    emc_features = emc_features.reset_index()
+
+    comm_features = comm_features.merge(emc_features, how='outer', on=['combined_hash'])
+
+    return comm_features
