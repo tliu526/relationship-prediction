@@ -55,7 +55,7 @@ train_X = train_data.drop(['contact_type', 'pid', 'combined_hash'], axis=1)
 test_y = test_data['contact_type']
 test_X = test_data.drop(['contact_type', 'pid', 'combined_hash'], axis=1)
 
-if resample:
+if args.resample:
     print("original shape %s" % Counter(train_y))
 
     sm = SMOTE(random_state=rand_seed)
