@@ -12,6 +12,9 @@ import pandas as pd
 from autosklearn.classification import AutoSklearnClassifier
 from imblearn.over_sampling import SMOTE
 from sklearn.metrics import accuracy_score
+from sklearn.model_selection import GroupKFold
+
+from model_util import build_cv_groups
 
 rand_seed = 2
 
@@ -22,13 +25,6 @@ parser.add_argument('--resample', action='store_true', help='whether to resample
 
 args = parser.parse_args()
 
-# vanilla auto-sklearn
-automl = AutoSklearnClassifier(
-    #per_run_time_limit=10,
-    #time_left_for_this_task=20,
-    seed=rand_seed)
-    #initial_configurations_via_metalearning=0)
-    #ensemble_size=1, 
 
 # load data
 train_data = pickle.load(open("../data/{}_train_features.df".format(args.in_name), 'rb'))
@@ -64,12 +60,31 @@ if args.resample:
 
     print("resampled shape %s" % Counter(train_y))
 
+# vanilla auto-sklearn
+
+pid_groups = build_cv_groups(train_data['pid'])
+
+automl = AutoSklearnClassifier(
+    per_run_time_limit=10,
+    time_left_for_this_task=20,
+    resampling_strategy=GroupKFold,
+    resampling_strategy_arguments={
+        'folds': 5,
+        'groups': np.array(pid_groups)
+    },
+    #initial_configurations_via_metalearning=0,
+    #ensemble_size=1, 
+    seed=rand_seed)
+
+
 # training and testing
 automl.fit(train_X, train_y)
+# refit() necessary when using cross-validation, see documentation:
+# https://automl.github.io/auto-sklearn/stable/api.html#autosklearn.classification.AutoSklearnClassifier.refit
+automl.refit(train_X, train_y)
 predictions = automl.predict(test_X)
 print("Accuracy:", accuracy_score(test_y, predictions))
 
 # model saving: https://github.com/automl/auto-sklearn/issues/5
 pickle.dump(automl, open("{}.automl".format(args.out_name), "wb"))
-print(automl.get_models_with_weights())
 print(automl.sprint_statistics())
