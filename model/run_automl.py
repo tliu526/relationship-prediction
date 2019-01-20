@@ -65,8 +65,8 @@ if args.resample:
 pid_groups = build_cv_groups(train_data['pid'])
 
 automl = AutoSklearnClassifier(
-    per_run_time_limit=10,
-    time_left_for_this_task=20,
+    #per_run_time_limit=10,
+    #time_left_for_this_task=20,
     resampling_strategy=GroupKFold,
     resampling_strategy_arguments={
         'folds': 5,
