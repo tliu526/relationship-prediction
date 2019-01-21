@@ -7,7 +7,7 @@ import os
 import numpy as np
 import pandas as pd
 
-__all__ = ['get_time_from_gps', 'get_location_from_gps', 'preprocess_location']
+__all__ = ['get_time_from_gps', 'get_data_at_location', 'preprocess_location']
 
 
 def get_time_from_gps(path, time_now, time_prev, lat_report, lng_report):
