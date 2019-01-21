@@ -373,3 +373,20 @@ def build_emc_features(comm_features, comm_df, emc_df, hash_dict, pr_dict):
     comm_features = comm_features.merge(emc_features, how='outer', on=['combined_hash'])
 
     return comm_features
+
+
+def build_demo_features(comm_df, demo_df, age_gender_only=True):
+    """Adds demographic features of the egos to the feature frame.
+
+    Defaults to adding only age and gender.
+
+    """
+    demo_cols = ['age', 'gender', 'education', 'employment', 'live_together', 'race', 'ethnicity']
+    if age_gender_only:
+        demo_cols = ['age', 'gender']
+
+    for demo in demo_cols:
+        demo_dict = pd.Series(demo_df[demo].values,index=demo_df['pid']).to_dict()
+        comm_df["ego_{}".format(demo)] = comm_df['pid'].map(demo_dict)    
+
+    return comm_df
