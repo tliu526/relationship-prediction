@@ -380,6 +380,8 @@ def build_demo_features(comm_df, demo_df, age_gender_only=True):
 
     Defaults to adding only age and gender.
 
+    TODO need to handle ordinal variables variables: live_together
+
     """
     demo_cols = ['age', 'gender', 'education', 'employment', 'live_together', 'race', 'ethnicity']
     if age_gender_only:
@@ -387,6 +389,10 @@ def build_demo_features(comm_df, demo_df, age_gender_only=True):
 
     for demo in demo_cols:
         demo_dict = pd.Series(demo_df[demo].values,index=demo_df['pid']).to_dict()
-        comm_df["ego_{}".format(demo)] = comm_df['pid'].map(demo_dict)    
+        col_name = "ego_{}".format(demo)
+        comm_df[col_name] = comm_df['pid'].map(demo_dict) 
+        if demo != 'age':
+            # tile dummy variables out for non-ordinal categorical variables
+            comm_df = pd.get_dummies(comm_df, columns=[col_name])
 
     return comm_df

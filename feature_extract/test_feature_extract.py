@@ -155,7 +155,7 @@ class FeatureExtractTests(unittest.TestCase):
         """
         TODO test other demo features other than age/gender
         """
-        columns = ['ego_age', 'ego_gender']
+        columns = ['ego_age', 'ego_gender_female', 'ego_gender_male']
 
         demo_dict = {
             0: [self.pid1, 42, 'male'],
@@ -166,8 +166,8 @@ class FeatureExtractTests(unittest.TestCase):
         demo_df.columns = ['pid', 'age', 'gender']
 
         expected_dict = {
-            0: [42, 'male'],
-            1: [55, 'female']
+            0: [42, 0, 1],
+            1: [55, 1, 0]
         }
 
         expected_df = pd.DataFrame.from_dict(expected_dict).T
@@ -176,9 +176,10 @@ class FeatureExtractTests(unittest.TestCase):
 
         actual_df = init_feature_df(self.raw_df)
         actual_df = actual_df.reset_index()
+
         actual_df = build_demo_features(actual_df, demo_df)
 
-        pd.testing.assert_frame_equal(actual_df[columns], expected_df)
+        pd.testing.assert_frame_equal(actual_df[columns], expected_df, check_dtype=False)
 
 if __name__ == '__main__':
     unittest.main()
