@@ -18,6 +18,9 @@ from sklearn.model_selection import GroupKFold
 from model_util import build_cv_groups
 
 rand_seed = 2
+run_time = 360 # wallclock time limit for a given model, in sec
+task_time = 3600 # wallclock time limit for the autoML run, in sec 
+
 predict_targets = [
     'contact_type',
     'q1_want',
@@ -31,6 +34,7 @@ parser.add_argument('in_name', help='input prefix, either top_5 or top_10')
 parser.add_argument('out_name', help='output model name')
 parser.add_argument('predict_target', help='target value to predict: contact_type, q1_want, q2_talk, q3_loan, q4_closeness')
 parser.add_argument('--resample', action='store_true', help='whether to resample classes using SMOTE')
+parser.add_argument('--test', action='store_true', help='whether to make a test run of the model training')
 
 args = parser.parse_args()
 
@@ -58,6 +62,10 @@ train_X = train_data.drop(['pid', 'combined_hash'] + predict_targets, axis=1, er
 test_y = test_data[args.predict_target]
 test_X = test_data.drop(['pid', 'combined_hash'] + predict_targets, axis=1, errors='ignore')
 
+if args.test:
+    run_time = 10
+    task_time = 15`
+
 if args.resample:
     print("original shape %s" % Counter(train_y))
 
@@ -67,14 +75,13 @@ if args.resample:
 
     print("resampled shape %s" % Counter(train_y))
 
-# vanilla auto-sklearn
-
 pid_groups = build_cv_groups(train_data['pid'])
 
+# vanilla auto-sklearn
 if args.predict_target == 'contact_type':
     automl = AutoSklearnClassifier(
-        per_run_time_limit=10,
-        time_left_for_this_task=20,
+        per_run_time_limit=run_time,
+        time_left_for_this_task=task_time,
         resampling_strategy=GroupKFold,
         resampling_strategy_arguments={
             'folds': 5,
@@ -85,8 +92,8 @@ if args.predict_target == 'contact_type':
         seed=rand_seed)
 else:
     automl = AutoSklearnRegressor(
-        per_run_time_limit=10,
-        time_left_for_this_task=20,
+        per_run_time_limit=run_time,
+        time_left_for_this_task=task_time,
         resampling_strategy=GroupKFold,
         resampling_strategy_arguments={
             'folds': 5,
@@ -102,6 +109,7 @@ automl.fit(train_X, train_y)
 # https://automl.github.io/auto-sklearn/stable/api.html#autosklearn.classification.AutoSklearnClassifier.refit
 automl.refit(train_X, train_y)
 predictions = automl.predict(test_X)
+
 if args.predict_target == 'contact_type':
     print("Accuracy:", accuracy_score(test_y, predictions))
 else:
@@ -109,4 +117,5 @@ else:
 
 # model saving: https://github.com/automl/auto-sklearn/issues/5
 pickle.dump(automl, open("{}.automl".format(args.out_name), "wb"))
+pickle.dump(predictions, open("{}.predict".format(args.out_name), "wb"))
 print(automl.sprint_statistics())
