@@ -64,7 +64,7 @@ test_X = test_data.drop(['pid', 'combined_hash'] + predict_targets, axis=1, erro
 
 if args.test:
     run_time = 10
-    task_time = 15`
+    task_time = 15
 
 if args.resample:
     print("original shape %s" % Counter(train_y))
