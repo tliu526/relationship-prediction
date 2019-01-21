@@ -10,21 +10,29 @@ import numpy as np
 import pandas as pd
 
 from autosklearn.classification import AutoSklearnClassifier
+from autosklearn.regression import AutoSklearnRegressor
 from imblearn.over_sampling import SMOTE
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score, mean_squared_error
 from sklearn.model_selection import GroupKFold
 
 from model_util import build_cv_groups
 
 rand_seed = 2
+predict_targets = [
+    'contact_type',
+    'q1_want',
+    'q2_talk',
+    'q3_loan',
+    'q4_closeness'
+]
 
 parser = argparse.ArgumentParser()
 parser.add_argument('in_name', help='input prefix, either top_5 or top_10')
 parser.add_argument('out_name', help='output model name')
+parser.add_argument('predict_target', help='target value to predict: contact_type, q1_want, q2_talk, q3_loan, q4_closeness')
 parser.add_argument('--resample', action='store_true', help='whether to resample classes using SMOTE')
 
 args = parser.parse_args()
-
 
 # load data
 train_data = pickle.load(open("../data/{}_train_features.df".format(args.in_name), 'rb'))
@@ -38,18 +46,17 @@ replace_dict = {
         "task": 2,
         "family_live_separate": 3,
         "family_live_together": 4,
-        "other": 5,
-        "sig_other": 6
+        "sig_other": 5
     }
 }
 
 train_data = train_data.replace(replace_dict)
 test_data = test_data.replace(replace_dict)
 
-train_y = train_data['contact_type']
-train_X = train_data.drop(['contact_type', 'pid', 'combined_hash'], axis=1)
-test_y = test_data['contact_type']
-test_X = test_data.drop(['contact_type', 'pid', 'combined_hash'], axis=1)
+train_y = train_data[args.predict_target]
+train_X = train_data.drop(['pid', 'combined_hash'] + predict_targets, axis=1, errors='ignore')
+test_y = test_data[args.predict_target]
+test_X = test_data.drop(['pid', 'combined_hash'] + predict_targets, axis=1, errors='ignore')
 
 if args.resample:
     print("original shape %s" % Counter(train_y))
@@ -64,18 +71,30 @@ if args.resample:
 
 pid_groups = build_cv_groups(train_data['pid'])
 
-automl = AutoSklearnClassifier(
-    #per_run_time_limit=10,
-    #time_left_for_this_task=20,
-    resampling_strategy=GroupKFold,
-    resampling_strategy_arguments={
-        'folds': 5,
-        'groups': np.array(pid_groups)
-    },
-    #initial_configurations_via_metalearning=0,
-    #ensemble_size=1, 
-    seed=rand_seed)
-
+if args.predict_target == 'contact_type':
+    automl = AutoSklearnClassifier(
+        per_run_time_limit=10,
+        time_left_for_this_task=20,
+        resampling_strategy=GroupKFold,
+        resampling_strategy_arguments={
+            'folds': 5,
+            'groups': np.array(pid_groups)
+        },
+        #initial_configurations_via_metalearning=0,
+        #ensemble_size=1, 
+        seed=rand_seed)
+else:
+    automl = AutoSklearnRegressor(
+        per_run_time_limit=10,
+        time_left_for_this_task=20,
+        resampling_strategy=GroupKFold,
+        resampling_strategy_arguments={
+            'folds': 5,
+            'groups': np.array(pid_groups)
+        },
+        #initial_configurations_via_metalearning=0,
+        #ensemble_size=1, 
+        seed=rand_seed)
 
 # training and testing
 automl.fit(train_X, train_y)
@@ -83,7 +102,10 @@ automl.fit(train_X, train_y)
 # https://automl.github.io/auto-sklearn/stable/api.html#autosklearn.classification.AutoSklearnClassifier.refit
 automl.refit(train_X, train_y)
 predictions = automl.predict(test_X)
-print("Accuracy:", accuracy_score(test_y, predictions))
+if args.predict_target == 'contact_type':
+    print("Accuracy:", accuracy_score(test_y, predictions))
+else:
+    print("MSE:", mean_squared_error(test_y, predictions)) 
 
 # model saving: https://github.com/automl/auto-sklearn/issues/5
 pickle.dump(automl, open("{}.automl".format(args.out_name), "wb"))
