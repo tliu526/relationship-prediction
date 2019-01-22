@@ -18,6 +18,14 @@ import pandas as pd
 
 DAY_DIVISOR = 4  # 6 hour chunks
 
+__all__ = [
+    'comm_feature_extract', 
+    'build_nan_features', 
+    'build_emc_features',
+    'build_demo_features',
+    'build_location_features'
+]
+
 def comm_feature_extract(comm_df, ema_df):
     """Generates a DataFrame with extracted comm features, one contact per row.
 
@@ -380,7 +388,7 @@ def build_demo_features(comm_df, demo_df, age_gender_only=True):
 
     Defaults to adding only age and gender.
 
-    TODO need to handle ordinal variables variables: live_together
+    TODO need to handle ordinal variables: live_together
 
     """
     demo_cols = ['age', 'gender', 'education', 'employment', 'live_together', 'race', 'ethnicity']
@@ -396,3 +404,77 @@ def build_demo_features(comm_df, demo_df, age_gender_only=True):
             comm_df = pd.get_dummies(comm_df, columns=[col_name])
 
     return comm_df
+
+
+visit_reasons = [
+    'visit_reason:entertainment',
+    'visit_reason:errand',
+    'visit_reason:home',
+    'visit_reason:work',
+    'visit_reason:exercise',
+    'visit_reason:dining',
+    'visit_reason:socialize',
+    'visit_reason:travel/traffic',
+    'visit_reason:other'
+]
+
+
+locations = [
+    "loc:home",
+    "loc:work",
+    "loc:anothers_home",
+    "loc:arts/entertainment",
+    "loc:food",
+    "loc:nightlife",
+    "loc:outdoors/recreation",
+    "loc:gym/exercise",
+    "loc:professional/medical_office",
+    "loc:spiritual",
+    "loc:shop",
+    "loc:travel/transport",
+    "loc:vehicle",
+    "loc:other"
+]
+
+def build_location_features(comm_features, comm_df):
+    """Adds semantic location features to the feature frame.
+
+    Assumes the incoming comm_df dataframe has the semantic location features 
+    populated.
+
+    TODO refactor with call_df, sms_df as parameters?
+    TODO should we divide by total number of communications?
+    """
+
+    call_df = comm_df.loc[comm_df['comm_type'] == 'PHONE']
+    sms_df = comm_df.loc[comm_df['comm_type'] == 'SMS']
+
+    # call features
+    call_visit = call_df.groupby(['pid', 'combined_hash'])[visit_reasons].sum()
+    call_visit[visit_reasons] = call_visit[visit_reasons].divide(call_visit.sum(axis=1), axis='rows')
+    call_visit = call_visit.add_prefix('call_')
+    call_visit = call_visit.reset_index()
+
+    call_loc = call_df.groupby(['pid', 'combined_hash'])[locations].sum()
+    call_loc[locations] = call_loc[locations].divide(call_loc.sum(axis=1), axis='rows')
+    call_loc = call_loc.add_prefix('call_')
+    call_loc = call_loc.reset_index()
+
+    #sms features
+    sms_visit = sms_df.groupby(['pid', 'combined_hash'])[visit_reasons].sum()
+    sms_visit[visit_reasons] = sms_visit[visit_reasons].divide(sms_visit.sum(axis=1), axis='rows')
+    sms_visit = sms_visit.add_prefix('sms_')
+    sms_visit = sms_visit.reset_index()
+
+    sms_loc = sms_df.groupby(['pid', 'combined_hash'])[locations].sum()
+    sms_loc[locations] = sms_loc[locations].divide(sms_loc.sum(axis=1), axis='rows')
+    sms_loc = sms_loc.add_prefix('sms_')
+    sms_loc = sms_loc.reset_index()
+
+    comm_features = comm_features.merge(call_visit, on=['pid', 'combined_hash'], how='outer')
+    comm_features = comm_features.merge(call_loc, on=['pid', 'combined_hash'], how='outer')
+    comm_features = comm_features.merge(sms_visit, on=['pid', 'combined_hash'], how='outer')
+    comm_features = comm_features.merge(sms_loc, on=['pid', 'combined_hash'], how='outer')
+    
+    return comm_features
+

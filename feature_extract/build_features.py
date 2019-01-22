@@ -7,7 +7,7 @@ import argparse
 import pickle
 
 #from imblearn.over_sampling import SMOTE
-from feature_extract import comm_feature_extract, build_nan_features, build_emc_features, build_demo_features
+from feature_extract import *
 
 
 if __name__ == '__main__':
@@ -18,6 +18,8 @@ if __name__ == '__main__':
     parser.add_argument('--emc_features', action='store_true', help='adds contact EMA features')
     # TODO add option for other demographic features
     parser.add_argument('--demo_features', action='store_true', help='adds demographic features')
+    parser.add_argument('--loc_features', action='store_true', help='adds location features')
+
     args = parser.parse_args()
     
     # load data
@@ -30,7 +32,6 @@ if __name__ == '__main__':
     # feature extraction
     if args.comm_file is not None:
         full_features = comm_feature_extract(full_df, emm_df)
-        full_features = build_nan_features(full_features)
 
     if args.emc_features:
         emc_all = pickle.load(open('../data/emc_all.df', 'rb'))
@@ -44,6 +45,11 @@ if __name__ == '__main__':
         demo_df = pickle.load(open('../data/demographics.df', 'rb'))
         full_features = build_demo_features(full_features, demo_df)
 
+    if args.loc_features:
+        full_features = build_location_features(full_features, full_df)
+
+    # build NaN features last
+    full_features = build_nan_features(full_features)
 
     # split test and train data
     train_features = full_features.loc[~full_features['pid'].isin(test_pids)]

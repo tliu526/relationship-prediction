@@ -13,3 +13,6 @@ App\ Usage\ Mental\ Health\ Study/*
 *.synctex.gz
 *.aux
 *latexmk
+*.automl
+*.predict
+notebooks/
