@@ -400,8 +400,30 @@ def build_demo_features(comm_df, demo_df, age_gender_only=True):
         col_name = "ego_{}".format(demo)
         comm_df[col_name] = comm_df['pid'].map(demo_dict) 
         if demo != 'age':
-            # tile dummy variables out for non-ordinal categorical variables
-            comm_df = pd.get_dummies(comm_df, columns=[col_name])
+            if demo == 'education':
+                edu_dict = {
+                    'some_hs': 0,
+                    'completed_hs': 1,
+                    'some_college': 2,
+                    'associates': 3, 
+                    'bachelors': 4,
+                    'masters': 5,
+                    'pro_doctoral': 6 
+                }
+                comm_df[col_name] = comm_df[col_name].map(edu_dict)
+
+            elif demo == 'live_together':
+                live_dict = {
+                    'alone': 0, 
+                    '1_other': 1,
+                    '2_others': 2, 
+                    '>=3_others': 3
+                }
+                comm_df[col_name] = comm_df[col_name].map(live_dict)
+
+            else:
+                # tile dummy variables out for non-ordinal categorical variables
+                comm_df = pd.get_dummies(comm_df, columns=[col_name])
 
     return comm_df
 

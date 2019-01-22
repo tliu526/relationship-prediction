@@ -16,10 +16,10 @@ if __name__ == '__main__':
     parser.add_argument('out_name', help='output features name')
     parser.add_argument('--comm_file', help='communication df file')
     parser.add_argument('--emc_features', action='store_true', help='adds contact EMA features')
-    # TODO add option for other demographic features
     parser.add_argument('--demo_features', action='store_true', help='adds demographic features')
+    parser.add_argument('--age_gender_only', action='store_true', help='only use age/gender demographics')
     parser.add_argument('--loc_features', action='store_true', help='adds location features')
-
+    parser.add_argument('--impute_missing', action='store_true', help='whether to impute NaNs and create additional features')
     args = parser.parse_args()
     
     # load data
@@ -39,17 +39,18 @@ if __name__ == '__main__':
         pr_dict = pickle.load(open('../data/pr.dict', 'rb'))
         full_features = build_emc_features(full_features, full_df, emc_all, hash_dict, pr_dict)
         # emc_features tiles all combined_hashes, so drop all nans
-        full_features = full_features.dropna()
+        #full_features = full_features.dropna()
 
     if args.demo_features:
         demo_df = pickle.load(open('../data/demographics.df', 'rb'))
-        full_features = build_demo_features(full_features, demo_df)
+        full_features = build_demo_features(full_features, demo_df, args.age_gender_only)
 
     if args.loc_features:
         full_features = build_location_features(full_features, full_df)
 
-    # build NaN features last
-    full_features = build_nan_features(full_features)
+    if args.impute_missing:
+        full_features = build_nan_features(full_features)
+
 
     # split test and train data
     train_features = full_features.loc[~full_features['pid'].isin(test_pids)]
