@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 
 from autosklearn.classification import AutoSklearnClassifier
+import autosklearn.metrics
 from autosklearn.regression import AutoSklearnRegressor
 from imblearn.over_sampling import SMOTE, RandomOverSampler
 from sklearn.metrics import accuracy_score, mean_squared_error
@@ -42,6 +43,7 @@ parser.add_argument('--rand_forest', action='store_true', help='run only baselin
 parser.add_argument('--test', action='store_true', help='whether to make a test run of the model training')
 parser.add_argument('--run_time', help='optionally specify run time')
 parser.add_argument('--task_time', help='optionally specify task time')
+parser.add_argument('--log_loss', action='store_true', help='use log loss for classification')
 
 args = parser.parse_args()
 
@@ -103,8 +105,9 @@ else:
     train_X = train_X.drop(['pid'], axis=1)
 
 
-# vanilla auto-sklearn
+# classification task
 if args.predict_target == 'contact_type':
+    
     automl = AutoSklearnClassifier(
         per_run_time_limit=run_time,
         time_left_for_this_task=task_time,
@@ -117,7 +120,14 @@ if args.predict_target == 'contact_type':
         ensemble_size=ensemble_size, 
         ensemble_nbest=ensemble_nbest,
         include_estimators=estimators,
-        seed=rand_seed)
+        seed=rand_seed
+    )
+
+    clf_metric = autosklearn.metrics.accuracy
+    if args.log_loss:
+        clf_metric = autosklearn.metrics.log_loss
+    automl.fit(train_X, train_y, metric=clf_metric)
+
 else:
     automl = AutoSklearnRegressor(
         per_run_time_limit=run_time,
@@ -131,10 +141,11 @@ else:
         ensemble_size=ensemble_size, 
         ensemble_nbest=ensemble_nbest,
         include_estimators=estimators,
-        seed=rand_seed)
+        seed=rand_seed
+    )
 
-# training and testing
-automl.fit(train_X, train_y)
+    automl.fit(train_X, train_y)
+
 # refit() necessary when using cross-validation, see documentation:
 # https://automl.github.io/auto-sklearn/stable/api.html#autosklearn.classification.AutoSklearnClassifier.refit
 automl.refit(train_X, train_y)
