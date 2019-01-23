@@ -391,7 +391,7 @@ def build_demo_features(comm_df, demo_df, age_gender_only=True):
     TODO need to handle ordinal variables: live_together
 
     """
-    demo_cols = ['age', 'gender', 'education', 'employment', 'live_together', 'race', 'ethnicity']
+    demo_cols = ['age', 'gender', 'education', 'employment', 'live_together', 'race', 'ethnicity', 'marital_status']
     if age_gender_only:
         demo_cols = ['age', 'gender']
 
