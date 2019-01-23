@@ -11,7 +11,7 @@ import pandas as pd
 
 from autosklearn.classification import AutoSklearnClassifier
 from autosklearn.regression import AutoSklearnRegressor
-from imblearn.over_sampling import SMOTE
+from imblearn.over_sampling import SMOTE, RandomOverSampler
 from sklearn.metrics import accuracy_score, mean_squared_error
 from sklearn.model_selection import GroupKFold
 
@@ -40,6 +40,8 @@ parser.add_argument('predict_target', help='target value to predict: contact_typ
 parser.add_argument('--resample', action='store_true', help='whether to resample classes using SMOTE')
 parser.add_argument('--rand_forest', action='store_true', help='run only baseline random forest')
 parser.add_argument('--test', action='store_true', help='whether to make a test run of the model training')
+parser.add_argument('--run_time', help='optionally specify run time')
+parser.add_argument('--task_time', help='optionally specify task time')
 
 args = parser.parse_args()
 
@@ -63,9 +65,15 @@ train_data = train_data.replace(replace_dict)
 test_data = test_data.replace(replace_dict)
 
 train_y = train_data[args.predict_target]
-train_X = train_data.drop(['pid', 'combined_hash'] + predict_targets, axis=1, errors='ignore')
+train_X = train_data.drop(['combined_hash'] + predict_targets, axis=1, errors='ignore')
 test_y = test_data[args.predict_target]
 test_X = test_data.drop(['pid', 'combined_hash'] + predict_targets, axis=1, errors='ignore')
+
+if args.run_time:
+    run_time = int(args.run_time)
+
+if args.task_time:
+    task_time = int(args.task_time)
 
 if args.test:
     # set some trivially small training time to test script
@@ -80,13 +88,20 @@ if args.rand_forest:
 if args.resample:
     print("original shape %s" % Counter(train_y))
 
-    sm = SMOTE(random_state=rand_seed)
+    sm = RandomOverSampler(random_state=rand_seed)
 
     train_X, train_y = sm.fit_resample(train_X, train_y)
 
     print("resampled shape %s" % Counter(train_y))
 
-pid_groups = build_cv_groups(train_data['pid'])
+
+    pid_groups = build_cv_groups(pd.Series(train_X[:,0])) # pid col
+    train_X = train_X[:, 1:]
+
+else:
+    pid_groups = build_cv_groups(train_X['pid'])
+    train_X = train_X.drop(['pid'], axis=1)
+
 
 # vanilla auto-sklearn
 if args.predict_target == 'contact_type':
