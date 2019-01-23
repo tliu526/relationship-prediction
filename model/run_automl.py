@@ -21,6 +21,10 @@ rand_seed = 2
 run_time = 360 # wallclock time limit for a given model, in sec
 task_time = 3600 # wallclock time limit for the autoML run, in sec 
 
+ensemble_size = 50 # default ensemble size for AutoML
+ensemble_nbest = 50
+estimators = None # default estimators, selects all of them
+
 predict_targets = [
     'contact_type',
     'q1_want',
@@ -34,6 +38,7 @@ parser.add_argument('in_name', help='input prefix, either top_5 or top_10')
 parser.add_argument('out_name', help='output model name')
 parser.add_argument('predict_target', help='target value to predict: contact_type, q1_want, q2_talk, q3_loan, q4_closeness')
 parser.add_argument('--resample', action='store_true', help='whether to resample classes using SMOTE')
+parser.add_argument('--rand_forest', action='store_true', help='run only baseline random forest')
 parser.add_argument('--test', action='store_true', help='whether to make a test run of the model training')
 
 args = parser.parse_args()
@@ -63,8 +68,14 @@ test_y = test_data[args.predict_target]
 test_X = test_data.drop(['pid', 'combined_hash'] + predict_targets, axis=1, errors='ignore')
 
 if args.test:
+    # set some trivially small training time to test script
     run_time = 10
     task_time = 15
+
+if args.rand_forest:
+    estimators = ['random_forest']
+    ensemble_size = 1
+    ensemble_nbest = 1
 
 if args.resample:
     print("original shape %s" % Counter(train_y))
@@ -88,7 +99,9 @@ if args.predict_target == 'contact_type':
             'groups': np.array(pid_groups)
         },
         #initial_configurations_via_metalearning=0,
-        #ensemble_size=1, 
+        ensemble_size=ensemble_size, 
+        ensemble_nbest=ensemble_nbest,
+        include_estimators=estimators,
         seed=rand_seed)
 else:
     automl = AutoSklearnRegressor(
@@ -100,7 +113,9 @@ else:
             'groups': np.array(pid_groups)
         },
         #initial_configurations_via_metalearning=0,
-        #ensemble_size=1, 
+        ensemble_size=ensemble_size, 
+        ensemble_nbest=ensemble_nbest,
+        include_estimators=estimators,
         seed=rand_seed)
 
 # training and testing
