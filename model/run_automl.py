@@ -44,7 +44,7 @@ parser.add_argument('--test', action='store_true', help='whether to make a test 
 parser.add_argument('--run_time', help='optionally specify run time')
 parser.add_argument('--task_time', help='optionally specify task time')
 parser.add_argument('--log_loss', action='store_true', help='use log loss for classification')
-
+parser.add_argument('--collapse_classes', action='store_true', help='optionally collapse relationship classes')
 args = parser.parse_args()
 
 # load data
@@ -52,15 +52,27 @@ train_data = pickle.load(open("../data/{}_train_features.df".format(args.in_name
 test_data = pickle.load(open("../data/{}_test_features.df".format(args.in_name), 'rb'))
 
 # data-preprocessing
-replace_dict = {
-    'contact_type': {
+contact_dict = {
         "work": 0,
         "friend": 1,
         "task": 2,
         "family_live_separate": 3,
         "family_live_together": 4,
         "sig_other": 5
+}
+
+if args.collapse_classes:
+    contact_dict =  {
+        "work": 0,
+        "friend": 1,
+        "family_live_separate": 1,
+        "task": 2,
+        "family_live_together": 3,
+        "sig_other": 3
     }
+
+replace_dict = {
+    'contact_type': contact_dict
 }
 
 train_data = train_data.replace(replace_dict)
