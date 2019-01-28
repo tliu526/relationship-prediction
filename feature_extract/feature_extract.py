@@ -44,6 +44,7 @@ def comm_feature_extract(comm_df, ema_df):
     comm_features = build_intensity_features(comm_features, call_df, sms_df)
     comm_features = build_channel_selection_features(comm_features, comm_df)
     comm_features = build_avoidance_features(comm_features, call_df, sms_df)
+    comm_features = build_duration_features(comm_features, call_df)
 
     return comm_features
 
@@ -125,10 +126,11 @@ def build_count_features(comm_features, call_df, sms_df, ema_df):
 
 
 def intensity_helper(comm_features, group_df, col, name):
-    """Helper function for build_intensity_features for calculating mean and std.
+    """Helper function for build_intensity_features: mean, std, min, med, max
 
-    Feature names will become {mean, std}_{name}
+    Feature names will become {mean, std, min, med, max}_{name}
     """
+    
     # mean calculation
     mean_name = 'mean_' + name
     comm_sum = group_df.groupby(['pid', 'combined_hash'], as_index=False)[col].sum()
@@ -159,10 +161,30 @@ def intensity_helper(comm_features, group_df, col, name):
     temp_df = temp_df.merge(ssum_count[['pid', 'combined_hash', 'total_ssum']], on=['pid', 'combined_hash'], how='outer')
     temp_df[std_name] = np.sqrt(temp_df['total_ssum'] / (temp_df['total_days'] - 1))
 
-    # TODO zero out NaNs here because of zero counts
-    # temp_df = temp_df.fillna(0) 
+    # min, med, max over a week
+    min_name = 'min_' + name
+    med_name = 'med_' + name
+    max_name = 'max_' + name
+    
+    group_key = ['pid', 'combined_hash', pd.Grouper(key='date_days', freq='W')]
 
-    comm_features[[mean_name, std_name]] = temp_df[[mean_name, std_name]]
+    wk_counts = group_df.groupby(group_key)[col].sum()
+    
+    wk_med = wk_counts.groupby(level=[0,1]).median().reset_index()
+    wk_med = wk_med.rename({col: med_name}, axis='columns')
+    temp_df = temp_df.merge(wk_med, on=['pid', 'combined_hash'], how='outer')
+
+    wk_min = wk_counts.groupby(level=[0,1]).min().reset_index()
+    wk_min = wk_min.rename({col: min_name}, axis='columns')
+    temp_df = temp_df.merge(wk_min, on=['pid', 'combined_hash'], how='outer')
+
+    wk_max = wk_counts.groupby(level=[0,1]).max().reset_index()
+    wk_max = wk_max.rename({col: max_name}, axis='columns')
+    temp_df = temp_df.merge(wk_max, on=['pid', 'combined_hash'], how='outer')
+
+
+    final_features = [mean_name, std_name, min_name, med_name, max_name]
+    comm_features[final_features] = temp_df[final_features]
 
     return comm_features
 
@@ -326,6 +348,35 @@ def build_avoidance_features(comm_features, call_df, sms_df):
     return comm_features
     
 
+def build_duration_features(comm_features, call_df):
+    """Builds features associated with call duration.
+
+    """
+    call_dur = 'call_duration'
+
+    # incoming features
+    in_call_df = call_df.loc[call_df['comm_direction'] == 'INCOMING']
+    avg_in_dur = in_call_df.groupby(['pid', 'combined_hash'], as_index=False)[call_dur].mean()
+    avg_in_dur = avg_in_dur.rename({call_dur: 'avg_in_duration'}, axis='columns')
+    max_in_dur = in_call_df.groupby(['pid', 'combined_hash'], as_index=False)[call_dur].max()
+    max_in_dur = max_in_dur.rename({call_dur: 'max_in_duration'}, axis='columns')
+
+    comm_features = comm_features.merge(avg_in_dur, on=['pid', 'combined_hash'], how='outer')
+    comm_features = comm_features.merge(max_in_dur, on=['pid', 'combined_hash'], how='outer')
+
+    # outgoing features
+    out_call_df = call_df.loc[call_df['comm_direction'] == 'OUTGOING']
+    avg_out_dur = out_call_df.groupby(['pid', 'combined_hash'], as_index=False)[call_dur].mean()
+    avg_out_dur = avg_out_dur.rename({call_dur: 'avg_out_duration'}, axis='columns')
+    max_out_dur = out_call_df.groupby(['pid', 'combined_hash'], as_index=False)[call_dur].max()
+    max_out_dur = max_out_dur.rename({call_dur: 'max_out_duration'}, axis='columns')
+
+    comm_features = comm_features.merge(avg_out_dur, on=['pid', 'combined_hash'], how='outer')
+    comm_features = comm_features.merge(max_out_dur, on=['pid', 'combined_hash'], how='outer')
+
+    return comm_features
+
+
 def build_nan_features(comm_features, fill_val=0):
     """Adds additional feature columns for nans and fills NaNs with fill_val.
 
@@ -337,6 +388,10 @@ def build_nan_features(comm_features, fill_val=0):
     indicator_cols = comm_indicator.columns
     comm_features[indicator_cols] = comm_indicator[indicator_cols]
 
+    if fill_val == 'mean':
+        print('filling mean')
+        fill_val = comm_features.mean()
+    
     comm_features = comm_features.fillna(fill_val)
 
     return comm_features
@@ -400,30 +455,32 @@ def build_demo_features(comm_df, demo_df, age_gender_only=True):
         col_name = "ego_{}".format(demo)
         comm_df[col_name] = comm_df['pid'].map(demo_dict) 
         if demo != 'age':
-            if demo == 'education':
-                edu_dict = {
-                    'some_hs': 0,
-                    'completed_hs': 1,
-                    'some_college': 2,
-                    'associates': 3, 
-                    'bachelors': 4,
-                    'masters': 5,
-                    'pro_doctoral': 6 
-                }
-                comm_df[col_name] = comm_df[col_name].map(edu_dict)
+            # change everything to one-hot
+            # if demo == 'education':
+            #     edu_dict = {
+            #         'some_hs': 0,
+            #         'completed_hs': 1,
+            #         'some_college': 2,
+            #         'associates': 3, 
+            #         'bachelors': 4,
+            #         'masters': 5,
+            #         'pro_doctoral': 6 
+            #     }
+            #     comm_df[col_name] = comm_df[col_name].map(edu_dict)
 
-            elif demo == 'live_together':
-                live_dict = {
-                    'alone': 0, 
-                    '1_other': 1,
-                    '2_others': 2, 
-                    '>=3_others': 3
-                }
-                comm_df[col_name] = comm_df[col_name].map(live_dict)
+            # elif demo == 'live_together':
+            #     live_dict = {
+            #         'alone': 0, 
+            #         '1_other': 1,
+            #         '2_others': 2, 
+            #         '>=3_others': 3
+            #     }
+            #     comm_df[col_name] = comm_df[col_name].map(live_dict)
 
-            else:
-                # tile dummy variables out for non-ordinal categorical variables
-                comm_df = pd.get_dummies(comm_df, columns=[col_name])
+            # else:
+            
+            # tile dummy variables out for non-ordinal categorical variables
+            comm_df = pd.get_dummies(comm_df, columns=[col_name])
 
     return comm_df
 
