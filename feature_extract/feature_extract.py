@@ -44,6 +44,7 @@ def comm_feature_extract(comm_df, ema_df):
     comm_features = build_intensity_features(comm_features, call_df, sms_df)
     comm_features = build_channel_selection_features(comm_features, comm_df)
     comm_features = build_avoidance_features(comm_features, call_df, sms_df)
+    comm_features = build_duration_features(comm_features, call_df)
 
     return comm_features
 
@@ -166,10 +167,8 @@ def intensity_helper(comm_features, group_df, col, name):
     max_name = 'max_' + name
     
     group_key = ['pid', 'combined_hash', pd.Grouper(key='date_days', freq='W')]
-    print(group_df[['combined_hash', 'date_days']].head())
 
     wk_counts = group_df.groupby(group_key)[col].sum()
-    print(wk_counts.head())
     
     wk_med = wk_counts.groupby(level=[0,1]).median().reset_index()
     wk_med = wk_med.rename({col: med_name}, axis='columns')
@@ -348,6 +347,35 @@ def build_avoidance_features(comm_features, call_df, sms_df):
     
     return comm_features
     
+
+def build_duration_features(comm_features, call_df):
+    """Builds features associated with call duration.
+
+    """
+    call_dur = 'call_duration'
+
+    # incoming features
+    in_call_df = call_df.loc[call_df['comm_direction'] == 'INCOMING']
+    avg_in_dur = in_call_df.groupby(['pid', 'combined_hash'], as_index=False)[call_dur].mean()
+    avg_in_dur = avg_in_dur.rename({call_dur: 'avg_in_duration'}, axis='columns')
+    max_in_dur = in_call_df.groupby(['pid', 'combined_hash'], as_index=False)[call_dur].max()
+    max_in_dur = max_in_dur.rename({call_dur: 'max_in_duration'}, axis='columns')
+
+    comm_features = comm_features.merge(avg_in_dur, on=['pid', 'combined_hash'], how='outer')
+    comm_features = comm_features.merge(max_in_dur, on=['pid', 'combined_hash'], how='outer')
+
+    # outgoing features
+    out_call_df = call_df.loc[call_df['comm_direction'] == 'OUTGOING']
+    avg_out_dur = out_call_df.groupby(['pid', 'combined_hash'], as_index=False)[call_dur].mean()
+    avg_out_dur = avg_out_dur.rename({call_dur: 'avg_out_duration'}, axis='columns')
+    max_out_dur = out_call_df.groupby(['pid', 'combined_hash'], as_index=False)[call_dur].max()
+    max_out_dur = max_out_dur.rename({call_dur: 'max_out_duration'}, axis='columns')
+
+    comm_features = comm_features.merge(avg_out_dur, on=['pid', 'combined_hash'], how='outer')
+    comm_features = comm_features.merge(max_out_dur, on=['pid', 'combined_hash'], how='outer')
+
+    return comm_features
+
 
 def build_nan_features(comm_features, fill_val=0):
     """Adds additional feature columns for nans and fills NaNs with fill_val.
