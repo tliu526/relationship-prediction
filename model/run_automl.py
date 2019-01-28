@@ -13,7 +13,7 @@ from autosklearn.classification import AutoSklearnClassifier
 import autosklearn.metrics
 from autosklearn.regression import AutoSklearnRegressor
 from imblearn.over_sampling import SMOTE, RandomOverSampler
-from sklearn.metrics import accuracy_score, mean_squared_error
+from sklearn.metrics import accuracy_score, mean_squared_error, f1_score
 from sklearn.model_selection import GroupKFold
 
 from model_util import build_cv_groups
@@ -45,6 +45,8 @@ parser.add_argument('--run_time', help='optionally specify run time')
 parser.add_argument('--task_time', help='optionally specify task time')
 parser.add_argument('--log_loss', action='store_true', help='use log loss for classification')
 parser.add_argument('--collapse_classes', action='store_true', help='optionally collapse relationship classes')
+parser.add_argument('--weighted_f1', action='store_true', help='optionally makes classification loss weighted F1')
+
 args = parser.parse_args()
 
 # load data
@@ -138,6 +140,9 @@ if args.predict_target == 'contact_type':
     clf_metric = autosklearn.metrics.accuracy
     if args.log_loss:
         clf_metric = autosklearn.metrics.log_loss
+    if args.weighted_f1:
+        clf_metric = autosklearn.metrics.f1_weighted
+
     automl.fit(train_X, train_y, metric=clf_metric)
 
 else:
@@ -164,7 +169,10 @@ automl.refit(train_X, train_y)
 predictions = automl.predict(test_X)
 
 if args.predict_target == 'contact_type':
-    print("Accuracy:", accuracy_score(test_y, predictions))
+    if args.weighted_f1:
+        print("Weighted F1:", f1_score(test_y, predictions, average='weighted'))
+    else:
+        print("Accuracy:", accuracy_score(test_y, predictions))
 else:
     print("MSE:", mean_squared_error(test_y, predictions)) 
 
