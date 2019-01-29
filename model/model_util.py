@@ -53,3 +53,15 @@ def print_clf_metrics(test_y, predictions, contact_types):
     confusion_mat = sk_metrics.confusion_matrix(test_y, predictions)
     confuse_df = pd.DataFrame(confusion_mat, index=contact_types, columns=["p_" + x for x in contact_types])
     display(confuse_df)
+
+
+def get_best_val_score(model):
+    """Extracts the best validation score from sprint_statistics() call.
+    
+    """
+    stats = model.sprint_statistics()
+    target_str = "Best validation score: "
+    start_idx = stats.index(target_str) + len(target_str)
+    end_idx = stats.index("\n", start_idx)
+
+    return float(stats[start_idx:end_idx])
