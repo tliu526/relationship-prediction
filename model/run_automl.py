@@ -46,6 +46,7 @@ parser.add_argument('--task_time', help='optionally specify task time')
 parser.add_argument('--log_loss', action='store_true', help='use log loss for classification')
 parser.add_argument('--collapse_classes', action='store_true', help='optionally collapse relationship classes')
 parser.add_argument('--weighted_f1', action='store_true', help='optionally makes classification loss weighted F1')
+parser.add_argument('--emc_clf', action='store_true', help='optionally makes EMC prediction task into classification')
 
 args = parser.parse_args()
 
@@ -118,9 +119,15 @@ else:
     pid_groups = build_cv_groups(train_X['pid'])
     train_X = train_X.drop(['pid'], axis=1)
 
+# rebin for classification, 3 classes per previous literature
+if args.emc_clf:
+    _, bins = pd.qcut(train_y.append(test_y), 3, labels=False, retbins=True)
+    bins[0] -= 0.001 # for non-inclusive lower bound on first bin
+    train_y = pd.cut(train_y, bins, labels=False)
+    test_y = pd.cut(test_y, bins, labels=False)
 
 # classification task
-if args.predict_target == 'contact_type':
+if (args.predict_target == 'contact_type') or args.emc_clf:
     
     automl = AutoSklearnClassifier(
         per_run_time_limit=run_time,
@@ -168,7 +175,7 @@ else:
 automl.refit(train_X, train_y)
 predictions = automl.predict(test_X)
 
-if args.predict_target == 'contact_type':
+if (args.predict_target == 'contact_type') or args.emc_clf:
     if args.weighted_f1:
         print("Weighted F1:", f1_score(test_y, predictions, average='weighted'))
     else:
