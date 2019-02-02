@@ -16,8 +16,9 @@ TODO turn DataFrame into a class for better contract?
 import numpy as np
 import pandas as pd
 
-DAY_DIVISOR = 4  # 6 hour chunks
+DAY_DIVISOR = 6  # 4 hour chunks
 
+""" Commenting out for unit tests
 __all__ = [
     'comm_feature_extract', 
     'build_nan_features', 
@@ -25,6 +26,7 @@ __all__ = [
     'build_demo_features',
     'build_location_features'
 ]
+"""
 
 def comm_feature_extract(comm_df, ema_df):
     """Generates a DataFrame with extracted comm features, one contact per row.
@@ -94,6 +96,8 @@ def build_count_features(comm_features, call_df, sms_df, ema_df):
     - reg_call: regularity of calls, total_call_days / total_days
     - reg_sms: regularity of sms, total_sms_days / total_days
     - reg_comm: regularity of communication, total_comm_days / total_days
+    - total_days
+    - total_wks
     """
     call_group = call_df.groupby(['pid', 'combined_hash'])
     sms_group = sms_df.groupby(['pid', 'combined_hash'])
@@ -118,7 +122,7 @@ def build_count_features(comm_features, call_df, sms_df, ema_df):
     comm_features['total_days'] = comm_features.apply(lambda x: total_recorded_days[x.pid], 
                                                       axis=1)
 
-    total_recorded_wks = emm_df.groupby(['pid', pd.Grouper(key='date', freq='W')]).count()
+    total_recorded_wks = ema_df.groupby(['pid', pd.Grouper(key='date', freq='W')]).count()
     total_recorded_wks = total_recorded_wks.reset_index()
     total_recorded_wks = total_recorded_wks.groupby('pid')['date'].nunique()
     comm_features['total_wks'] = comm_features.apply(lambda x: total_recorded_wks[x.pid], 
@@ -138,43 +142,49 @@ def intensity_helper(comm_features, group_df, col, name):
 
     TODO modify days to weeks
     """
-    
+
+    # for week groupings 
+    group_key = ['pid', 'combined_hash', pd.Grouper(key='date_days', freq='W')]
+
+    # drop the other columns 
+    group_df = group_df[['pid', 'combined_hash', 'date_days', col]]
+
     # mean calculation
     mean_name = 'mean_' + name
     comm_sum = group_df.groupby(['pid', 'combined_hash'], as_index=False)[col].sum()
     temp_df = comm_features.merge(comm_sum, on=['pid', 'combined_hash'], how='outer')
-    temp_df[mean_name] = temp_df[col] / temp_df['total_days']
+    temp_df[mean_name] = temp_df[col] / temp_df['total_wks']
 
     mean_d = pd.Series(temp_df[mean_name].values,index=temp_df['combined_hash']).to_dict()
-    days_d = pd.Series(temp_df['total_days'].values,index=temp_df['pid']).to_dict()
+    wks_d = pd.Series(temp_df['total_wks'].values,index=temp_df['pid']).to_dict()
 
     # std calculation
     std_name = 'std_' + name
 
     # calculate squared sum difference of logged communications 
     group_df['mean_in'] = group_df['combined_hash'].map(mean_d)
-    group_df['total_days'] = group_df['pid'].map(days_d)
+    group_df['total_wks'] = group_df['pid'].map(wks_d)
     group_df['ssum'] = (group_df[col] - group_df['mean_in'])**2
 
-    # calculate ssum over delta days (days in the study w/o communication)
-    day_group = group_df.groupby(['pid', 'combined_hash'], as_index=False)
-    ssum_count = day_group['ssum'].count().copy()
+    # calculate ssum over delta wks (wks in the study w/o communication)
+    wk_group = group_df.groupby(['pid', 'combined_hash'], as_index=False)
+    # wk_group = group_df.groupby(['pid', 'combined_hash'], as_index=False)
+    ssum_count = wk_group['ssum'].count().copy()
     ssum_count = ssum_count.rename({'ssum': 'ssum_count'}, axis='columns')
-    ssum_count['delta_days'] = ssum_count['pid'].map(days_d) - ssum_count['ssum_count']
-    ssum_count['delta_ssum'] = ((ssum_count['combined_hash'].map(mean_d))**2) * ssum_count['delta_days']
+    ssum_count['delta_wks'] = ssum_count['pid'].map(wks_d) - ssum_count['ssum_count']
+    ssum_count['delta_ssum'] = ((ssum_count['combined_hash'].map(mean_d))**2) * ssum_count['delta_wks']
     
     # add ssum and delta_ssum and calculate std
-    ssum_count['ssum'] = day_group['ssum'].sum()['ssum']
+    ssum_count['ssum'] = wk_group['ssum'].sum()['ssum']
     ssum_count['total_ssum'] = ssum_count['delta_ssum'] + ssum_count['ssum']
     temp_df = temp_df.merge(ssum_count[['pid', 'combined_hash', 'total_ssum']], on=['pid', 'combined_hash'], how='outer')
-    temp_df[std_name] = np.sqrt(temp_df['total_ssum'] / (temp_df['total_days'] - 1))
+    temp_df[std_name] = np.sqrt(temp_df['total_ssum'] / (temp_df['total_wks'] - 1))
 
     # min, med, max over a week
     min_name = 'min_' + name
     med_name = 'med_' + name
     max_name = 'max_' + name
     
-    group_key = ['pid', 'combined_hash', pd.Grouper(key='date_days', freq='W')]
 
     wk_counts = group_df.groupby(group_key)[col].sum()
     
@@ -205,8 +215,14 @@ def build_intensity_features(comm_features, call_df, sms_df):
     Features created:
     - {mean, std} {out, in} {call, sms} per study day
     """
-    call_group = call_df.groupby(['pid', 'combined_hash', 'date_days', 'comm_direction'], 
+
+    # for week groupings 
+    group_key = ['pid', 'combined_hash', pd.Grouper(key='date_days', freq='W'), 'comm_direction']
+
+    call_group = call_df.groupby(group_key, 
                                  as_index=False).size().unstack(level=-1, fill_value=0)
+    # call_group = call_df.groupby(['pid', 'combined_hash', 'date_days', 'comm_direction'], 
+    #                              as_index=False).size().unstack(level=-1, fill_value=0)
     call_group = call_group.reset_index()
 
     if 'INCOMING' in call_group.columns:
@@ -214,8 +230,8 @@ def build_intensity_features(comm_features, call_df, sms_df):
     if 'OUTGOING' in call_group.columns:
         comm_features = intensity_helper(comm_features, call_group, 'OUTGOING', 'out_call')
 
-    sms_group = sms_df.groupby(['pid', 'combined_hash', 'date_days', 'comm_direction'], 
-                                 as_index=False).size().unstack(level=-1, fill_value=0)
+    sms_group = sms_df.groupby(group_key, 
+                               as_index=False).size().unstack(level=-1, fill_value=0)
     sms_group = sms_group.reset_index()
 
     if 'INCOMING' in sms_group.columns:

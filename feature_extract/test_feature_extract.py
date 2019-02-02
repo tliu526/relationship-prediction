@@ -69,40 +69,71 @@ class FeatureExtractTests(unittest.TestCase):
         columns = ['pid', 'combined_hash', 'total_comms', 'total_comm_days', 
                    'contact_type', 'total_calls', 'total_sms', 'total_sms_days',
                    'total_call_days', 'total_days', 'reg_call', 'reg_sms', 
-                   'reg_comm']
+                   'reg_comm', 'total_wks']
 
         expected_dict = {
             0: [self.pid1, self.combined_hash1, 8, 2, 'friend', 0, 8, 2, 0, 58,
-                0, 2/58, 2/58],
+                0, 2/58, 2/58, 9],
             1: [self.pid2, self.combined_hash2, 6, 3, 'family_live_together', 6, 
-                0, 0, 3, 58, 3/58, 0, 3/58]
+                0, 0, 3, 58, 3/58, 0, 3/58, 10]
         }
 
         expected_df = pd.DataFrame.from_dict(expected_dict).T
         expected_df.columns = columns
-        # expected_df[columns[2:4]] = expected_df[columns[2:4]].astype(int)        
-        # expected_df[columns[5:]] = expected_df[columns[5:]].astype(float)
-        # expected_df['total_days']= expected_df['total_days'].astype(int)
 
-        pd.testing.assert_frame_equal(actual_df, expected_df, check_dtype=False)
+        pd.testing.assert_frame_equal(actual_df[columns], expected_df, check_dtype=False)
 
-
-    @unittest.skip("TODO finish calculating std dev")
+    
     def test_build_intensity_features(self):
-        # TODO test these: 'mean_in_call', 'std_in_call'
-        columns = ['mean_out_call', 'std_out_call', 'mean_in_sms', 'std_in_sms',
-                   'mean_out_sms', 'std_out_sms']
-
-        expected_dict = {
-            0: [0, 0, 6/58],
-            1: [] 
+        # tests mean and std
+        mean_std_columns = ['mean_out_call', 'std_out_call', 'mean_in_sms', 'std_in_sms',
+                            'mean_out_sms', 'std_out_sms']
+        
+        pid1_total_wks = 9 
+        pid1_delta_wks = 8
+        pid1_mean_in_sms = 6/9
+        pid1_mean_out_sms = 2/9
+        pid1_std_in_sms = np.sqrt((pid1_delta_wks*((pid1_mean_in_sms)**2) + \
+                                  (6 - pid1_mean_in_sms)**2)/(pid1_total_wks - 1))
+        pid1_std_out_sms = np.sqrt((pid1_delta_wks*((pid1_mean_out_sms)**2) + \
+                                   (2 - pid1_mean_out_sms)**2)/(pid1_total_wks - 1))
+        
+        pid2_total_wks = 10
+        pid2_delta_wks = 7
+        pid2_mean_out_call = 4/10
+        pid2_std_out_call = np.sqrt((pid2_delta_wks*(pid2_mean_out_call**2) + \
+                                    (2*((1 - pid2_mean_out_call)**2)) + \
+                                    ((2 - pid2_mean_out_call)**2))/(pid2_total_wks - 1))
+        expected_mean_std_dict = {
+            0: [np.nan, np.nan, pid1_mean_in_sms, pid1_std_in_sms, pid1_mean_out_sms, pid1_std_out_sms],
+            1: [pid2_mean_out_call, pid2_std_out_call,np.nan, np.nan, np.nan, np.nan] 
         }
 
         actual_df = init_feature_df(self.raw_df)
         actual_df = build_count_features(actual_df, self.call_df, self.sms_df,
                                          self.emm_df)
         actual_df = build_intensity_features(actual_df, self.call_df, self.sms_df)
-        print(actual_df[columns])
+
+        expected_ms_df = pd.DataFrame.from_dict(expected_mean_std_dict).T
+        expected_ms_df.columns = mean_std_columns
+
+        pd.testing.assert_frame_equal(actual_df[mean_std_columns], expected_ms_df, check_dtype=False)
+
+        # test min, med, max
+        mmm_columns = ['min_out_call', 'med_out_call', 'max_out_call', 
+                       'min_in_sms', 'med_in_sms', 'max_in_sms',
+                       'min_out_sms', 'med_out_sms', 'max_out_sms']
+
+        expected_mmm_dict = {
+            0: [np.nan, np.nan, np.nan, 6, 6, 6, 2, 2, 2],
+            1: [1, 1, 2, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan],
+        }
+
+        expected_mmm_df = pd.DataFrame.from_dict(expected_mmm_dict).T
+        expected_mmm_df.columns = mmm_columns
+
+        pd.testing.assert_frame_equal(actual_df[mmm_columns], expected_mmm_df, check_dtype=False)
+
 
     @unittest.skip("TODO implement")
     def test_temporal_tendency_helper(self):
