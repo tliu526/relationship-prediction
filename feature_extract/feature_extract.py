@@ -113,9 +113,15 @@ def build_count_features(comm_features, call_df, sms_df, ema_df):
     comm_features['total_call_days'] = comm_features['total_call_days'].fillna(0)
     comm_features = comm_features.reset_index()
 
-    # build total logged days for each participant
+    # build total logged days/weeks for each participant
     total_recorded_days = ema_df.groupby('pid')['date'].nunique()
     comm_features['total_days'] = comm_features.apply(lambda x: total_recorded_days[x.pid], 
+                                                      axis=1)
+
+    total_recorded_wks = emm_df.groupby(['pid', pd.Grouper(key='date', freq='W')]).count()
+    total_recorded_wks = total_recorded_wks.reset_index()
+    total_recorded_wks = total_recorded_wks.groupby('pid')['date'].nunique()
+    comm_features['total_wks'] = comm_features.apply(lambda x: total_recorded_wks[x.pid], 
                                                       axis=1)
 
     comm_features['reg_call'] = comm_features['total_call_days'] / comm_features['total_days']
@@ -129,6 +135,8 @@ def intensity_helper(comm_features, group_df, col, name):
     """Helper function for build_intensity_features: mean, std, min, med, max
 
     Feature names will become {mean, std, min, med, max}_{name}
+
+    TODO modify days to weeks
     """
     
     # mean calculation
