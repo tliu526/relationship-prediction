@@ -212,6 +212,9 @@ class FeatureExtractTests(unittest.TestCase):
 
         pd.testing.assert_frame_equal(actual_df[columns], expected_df, check_dtype=False)
 
+
+    def test_build_duration_features(self):
+        pass        
 if __name__ == '__main__':
     unittest.main()
 
