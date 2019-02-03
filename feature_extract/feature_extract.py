@@ -16,7 +16,7 @@ TODO turn DataFrame into a class for better contract?
 import numpy as np
 import pandas as pd
 
-DAY_DIVISOR = 6  # 4 hour chunks
+DAY_DIVISOR = 4  # 6 hour chunks
 
 """ Commenting out for unit tests
 __all__ = [
@@ -279,13 +279,6 @@ def build_temporal_features(comm_features, call_df, sms_df):
     time_of_day_sms = temporal_tendency_helper(sms_df, 'time_of_day', 'sms')
     day_of_week_sms = temporal_tendency_helper(sms_df, 'day', 'sms')
 
-    # print(time_of_day_calls.isnull().any().sum())
-    # print(day_of_week_calls.isnull().any().sum())
-    # print(time_of_day_sms.isnull().any().sum())
-    # print(day_of_week_sms.isnull().any().sum())
-    
-    # print(time_of_day_calls.columns)
-
     comm_features = comm_features.merge(time_of_day_calls, 
                                         on=['pid', 'combined_hash'], 
                                         how='outer')
@@ -375,28 +368,35 @@ def build_avoidance_features(comm_features, call_df, sms_df):
 def build_duration_features(comm_features, call_df):
     """Builds features associated with call duration.
 
+    Features created:
+    - {avg, med, max}_{in, out}_duration
+    - tot_call_duration: sum of all call duration
+    - tot_long_calls: number of lengthy calls (double the median population len)
     """
     call_dur = 'call_duration'
 
-    # incoming features
-    in_call_df = call_df.loc[call_df['comm_direction'] == 'INCOMING']
-    avg_in_dur = in_call_df.groupby(['pid', 'combined_hash'], as_index=False)[call_dur].mean()
-    avg_in_dur = avg_in_dur.rename({call_dur: 'avg_in_duration'}, axis='columns')
-    max_in_dur = in_call_df.groupby(['pid', 'combined_hash'], as_index=False)[call_dur].max()
-    max_in_dur = max_in_dur.rename({call_dur: 'max_in_duration'}, axis='columns')
+    direction_tup = [('in', 'INCOMING'), ('out', 'OUTGOING')]
 
-    comm_features = comm_features.merge(avg_in_dur, on=['pid', 'combined_hash'], how='outer')
-    comm_features = comm_features.merge(max_in_dur, on=['pid', 'combined_hash'], how='outer')
+    # in/out features
+    for name, comm_dir in direction_tup:
+        avg_col = "avg_{}_duration".format(name)
+        max_col = "max_{}_duration".format(name)
+        med_col = "med_{}_duration".format(name)
 
-    # outgoing features
-    out_call_df = call_df.loc[call_df['comm_direction'] == 'OUTGOING']
-    avg_out_dur = out_call_df.groupby(['pid', 'combined_hash'], as_index=False)[call_dur].mean()
-    avg_out_dur = avg_out_dur.rename({call_dur: 'avg_out_duration'}, axis='columns')
-    max_out_dur = out_call_df.groupby(['pid', 'combined_hash'], as_index=False)[call_dur].max()
-    max_out_dur = max_out_dur.rename({call_dur: 'max_out_duration'}, axis='columns')
+        dir_call_df = call_df.loc[call_df['comm_direction'] == comm_dir]
 
-    comm_features = comm_features.merge(avg_out_dur, on=['pid', 'combined_hash'], how='outer')
-    comm_features = comm_features.merge(max_out_dur, on=['pid', 'combined_hash'], how='outer')
+        avg_dur = dir_call_df.groupby(['pid', 'combined_hash'], as_index=False)[call_dur].mean()
+        avg_dur = avg_dur.rename({call_dur: avg_col}, axis='columns')
+
+        max_dur = dir_call_df.groupby(['pid', 'combined_hash'], as_index=False)[call_dur].max()
+        max_dur = max_dur.rename({call_dur: max_col}, axis='columns')
+        
+        med_dur = dir_call_df.groupby(['pid', 'combined_hash'], as_index=False)[call_dur].median()
+        med_dur = med_dur.rename({call_dur: med_col}, axis='columns')
+
+        comm_features = comm_features.merge(avg_dur, on=['pid', 'combined_hash'], how='outer')
+        comm_features = comm_features.merge(max_dur, on=['pid', 'combined_hash'], how='outer')
+        comm_features = comm_features.merge(med_dur, on=['pid', 'combined_hash'], how='outer')
 
     return comm_features
 
@@ -467,8 +467,7 @@ def build_demo_features(comm_df, demo_df, age_gender_only=True):
 
     Defaults to adding only age and gender.
 
-    TODO need to handle ordinal variables: live_together
-
+    TODO how to handle ordinal variables?
     """
     demo_cols = ['age', 'gender', 'education', 'employment', 'live_together', 'race', 'ethnicity', 'marital_status']
     if age_gender_only:

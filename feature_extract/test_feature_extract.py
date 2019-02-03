@@ -214,7 +214,31 @@ class FeatureExtractTests(unittest.TestCase):
 
 
     def test_build_duration_features(self):
-        pass        
+        
+        # test avg, med, max in/out
+        amm_columns = ['avg_in_duration', 'med_in_duration', 'max_in_duration',
+                       'avg_out_duration', 'med_out_duration', 'max_out_duration']
+        
+
+        pid2_avg_out_dur = (129 + 42 + 33 + 59) / 4
+        pid2_med_out_dur = (42 + 59) / 2
+        pid2_max_out_dur = 129
+        
+        expected_amm_dict ={
+            0: [np.nan] * 6,
+            1: [np.nan, np.nan, np.nan, pid2_avg_out_dur, pid2_med_out_dur, pid2_max_out_dur]
+        }
+
+        expected_amm_df = pd.DataFrame.from_dict(expected_amm_dict).T
+        expected_amm_df.columns = amm_columns
+        
+        actual_df = init_feature_df(self.raw_df)
+        actual_df = build_duration_features(actual_df, 
+                                            self.call_df)  
+
+        pd.testing.assert_frame_equal(actual_df[amm_columns], expected_amm_df) 
+
+
 if __name__ == '__main__':
     unittest.main()
 
