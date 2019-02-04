@@ -47,8 +47,10 @@ def comm_feature_extract(comm_df, ema_df):
     comm_features = build_channel_selection_features(comm_features, comm_df)
     comm_features = build_avoidance_features(comm_features, call_df, sms_df)
     comm_features = build_duration_features(comm_features, call_df)
+    comm_features = build_maintenance_features(comm_features, call_df, sms_df)
 
     return comm_features
+
 
 def init_feature_df(raw_df):
     """Initializes the processed feature dataframe from raw_df.
@@ -274,6 +276,7 @@ def temporal_tendency_helper(df, group_col, comm_label, norm=None):
 
     return temp_tendency_df
 
+
 def duration_temporal_helper(call_df, group_col, comm_label):
     """Call duration temporal helper, due to aggregation and normalization differences.
 
@@ -470,9 +473,73 @@ def build_duration_features(comm_features, call_df):
     return comm_features
 
 
+def maintenance_features_helper(group_df, col_name, lookback, norm_df):
+    """Helper function to compute last lookback week counts.
+
+    Returns a df with the aggregated counts with column {col_name}_last_{lookback}_wks
+    """
+    group_df = group_df.reset_index()
+    target_col = group_df.columns.values[-1] # last col is the target col
+    out_col = col_name + "_last_" + str(lookback) + "_wks" 
+    
+    comm_wks = group_df.groupby(['pid', 'combined_hash'], as_index=False).tail(lookback)
+    comm_wks = comm_wks.groupby(['pid', 'combined_hash'], as_index=False)[target_col].sum()
+    comm_wks = comm_wks.rename({target_col: out_col}, axis='columns')
+    
+    norm_col = norm_df.columns.values[-1]
+
+    comm_wks = comm_wks.merge(norm_df, on=['pid', 'combined_hash'], how='outer')
+    comm_wks[out_col] = comm_wks[out_col] / comm_wks[norm_col]
+    
+    return comm_wks[['pid', 'combined_hash', out_col]]
+
+
+def build_maintenance_features(comm_features, call_df, sms_df):
+    """Builds maintenance cost features for call, sms, comm.
+
+    Features created:
+    - {call, sms, comm}_last_{2, 6}_wks: # {call, sms, comms} over the past {2,6} weeks / total {call, sms, comms}
+    - call_dur_last{2, 6}_wks: sum of call duration over the past {2,6} weeks / total calls
+    """
+    group_key = ['pid', 'combined_hash', pd.Grouper(key='date_days', freq='W')]
+
+    feature_dfs = []
+
+    # calls
+    call_group = call_df.groupby(group_key)['contact_type'].count()
+    tot_calls = comm_features[['pid', 'combined_hash', 'total_calls']]
+    feature_dfs.append(maintenance_features_helper(call_group, 'call', 2, tot_calls))
+    feature_dfs.append(maintenance_features_helper(call_group, 'call', 6, tot_calls))
+
+    # sms
+    sms_group = sms_df.groupby(group_key)['contact_type'].count()
+    tot_sms = comm_features[['pid', 'combined_hash', 'total_sms']]
+    feature_dfs.append(maintenance_features_helper(sms_group, 'sms', 2, tot_sms))
+    feature_dfs.append(maintenance_features_helper(sms_group, 'sms', 6, tot_sms))
+
+    # duration
+    dur_group = call_df.groupby(group_key)['call_duration'].sum()
+    feature_dfs.append(maintenance_features_helper(dur_group, 'call_dur', 2, tot_calls))
+    feature_dfs.append(maintenance_features_helper(dur_group, 'call_dur', 6, tot_calls))
+    
+    # total comms
+    comm_df = call_df.append(sms_df)
+    comm_group = comm_df.groupby(group_key)['contact_type'].count()
+    tot_comms = comm_features[['pid', 'combined_hash', 'total_comms']]
+    feature_dfs.append(maintenance_features_helper(comm_group, 'comm', 2, tot_comms))
+    feature_dfs.append(maintenance_features_helper(comm_group, 'comm', 6, tot_comms))
+
+    for df in feature_dfs:
+        comm_features = comm_features.merge(df, on=['pid', 'combined_hash'], how='outer')
+    
+    return comm_features
+
+
 def build_nan_features(comm_features, fill_val=0):
     """Adds additional feature columns for nans and fills NaNs with fill_val.
 
+    features created:
+    - {col}_nan_indicator: one-hot column indicating whether 
     """
     comm_indicator = comm_features.isnull().astype(int).add_suffix("_nan_indicator")
     # keep indicator cols that correspond to cols with NaNs
@@ -484,6 +551,9 @@ def build_nan_features(comm_features, fill_val=0):
     if fill_val == 'mean':
         print('filling mean')
         fill_val = comm_features.mean()
+    if fill_val == 'median':
+        print('filling median')
+        fill_val = comm_features.median()
     
     comm_features = comm_features.fillna(fill_val)
 

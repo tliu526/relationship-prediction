@@ -244,6 +244,50 @@ class FeatureExtractTests(unittest.TestCase):
         self.assert_frame_equal_dict(actual_df, expected_dict, columns)
 
 
+    def test_build_maintenance_features(self):
+        actual_df = init_feature_df(self.raw_df)
+        actual_df = build_count_features(actual_df, 
+                                         self.call_df, 
+                                         self.sms_df, 
+                                         self.emm_df)
+        actual_df = build_maintenance_features(actual_df, 
+                                             self.call_df, 
+                                             self.sms_df)  
+
+        # test sms
+        sms_cols = ['sms_last_2_wks', 'sms_last_6_wks']
+        exp_sms_dict = {
+            0: [1, 1],
+            1: [np.nan, np.nan]
+        }
+        self.assert_frame_equal_dict(actual_df, exp_sms_dict, sms_cols)
+
+        # test calls
+        call_cols = ['call_last_2_wks', 'call_last_6_wks']
+        tot_calls = 6
+        exp_call_dict = {
+            0: [np.nan, np.nan],
+            1: [5/tot_calls, 1]
+        }
+        self.assert_frame_equal_dict(actual_df, exp_call_dict, call_cols)
+
+        # test duration
+        dur_cols = ['call_dur_last_2_wks', 'call_dur_last_6_wks']
+        exp_dur_dict = {
+            0: [np.nan, np.nan],
+            1: [(59 + 42 + 33)/tot_calls, (59 + 42 + 33 + 129)/tot_calls]
+        }
+        self.assert_frame_equal_dict(actual_df, exp_dur_dict, dur_cols)
+
+        # test comm
+        comm_cols = ['comm_last_2_wks', 'comm_last_6_wks']
+        exp_comm_dict = {
+            0: [1, 1],
+            1: [5/tot_calls, 1]
+        }
+        self.assert_frame_equal_dict(actual_df, exp_comm_dict, comm_cols)
+
+
     def test_build_demo_features(self):
         """
         TODO test other demo features other than age/gender
