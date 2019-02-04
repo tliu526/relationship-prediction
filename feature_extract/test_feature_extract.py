@@ -172,6 +172,26 @@ class FeatureExtractTests(unittest.TestCase):
         }                     
         self.assert_frame_equal_dict(actual_df, exp_call_dict, call_cols)
 
+        # comm cols
+        comm_cols = ['time_of_day_2_comm', 'time_of_day_3_comm', 
+                     'day_2_comm', 'day_3_comm', 'day_4_comm', 'day_5_comm']
+        pid1_tot_comms = 8
+        pid2_tot_comms = 6
+        exp_comm_dict = {
+            0: [pid1_count/pid1_tot_comms for pid1_count in [6, 2, 4, 0, 0, 4]],
+            1: [pid2_count/pid2_tot_comms for pid2_count in [3, 3, 0, 1, 3, 2]]
+        }
+        self.assert_frame_equal_dict(actual_df, exp_comm_dict, comm_cols)
+
+        # out comm
+        out_cols = ['time_of_day_2_comm_out', 'time_of_day_3_comm_out', 
+                    'day_2_comm_out', 'day_3_comm_out', 'day_4_comm_out', 'day_5_comm_out']
+        exp_out_dict = {
+            0: [pid1_count/pid1_tot_comms for pid1_count in [1, 1, 1, 0, 0, 1]],
+            1: [pid2_count/pid2_tot_comms for pid2_count in [2, 2, 0, 1, 2, 1]]
+        }
+        self.assert_frame_equal_dict(actual_df, exp_out_dict, out_cols)
+
         # missed cols
         miss_cols = ['time_of_day_2_miss_call_out', 'time_of_day_3_miss_call_out', 'day_4_miss_call_out', 'day_5_miss_call_out',
                      'time_of_day_2_miss_call_in', 'time_of_day_3_miss_call_in', 'day_4_miss_call_in', 'day_5_miss_call_in']

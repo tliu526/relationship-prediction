@@ -308,6 +308,25 @@ def build_temporal_features(comm_features, call_df, sms_df):
     feature_dfs.append(temporal_tendency_helper(call_df, 'time_of_day', 'call'))
     feature_dfs.append(temporal_tendency_helper(call_df, 'day', 'call'))
 
+    # sms
+    feature_dfs.append(temporal_tendency_helper(sms_df, 'time_of_day', 'sms'))
+    feature_dfs.append(temporal_tendency_helper(sms_df, 'day', 'sms'))
+
+    # duration
+    feature_dfs.append(duration_temporal_helper(call_df, 'time_of_day', 'call_dur'))
+    feature_dfs.append(duration_temporal_helper(call_df, 'day', 'call_dur'))
+
+    # comms
+    comm_df = call_df.append(sms_df)
+    feature_dfs.append(temporal_tendency_helper(comm_df, 'time_of_day', 'comm'))
+    feature_dfs.append(temporal_tendency_helper(comm_df, 'day', 'comm'))
+    # out comms
+    out_comm = comm_df.loc[comm_df['comm_direction'] == 'OUTGOING']
+    tot_comms = comm_df.groupby(['pid', 'combined_hash'], 
+                                 as_index=False).count()['comm_direction']
+    feature_dfs.append(temporal_tendency_helper(out_comm, 'time_of_day', 'comm_out', tot_comms))
+    feature_dfs.append(temporal_tendency_helper(out_comm, 'day', 'comm_out', tot_comms))    
+    
     # missed/lengthy calls 
     miss_df = call_df.loc[call_df['comm_direction'] == 'MISSED']
     long_df = call_df.loc[call_df['call_duration'] > call_df['call_duration'].median()]
@@ -327,14 +346,7 @@ def build_temporal_features(comm_features, call_df, sms_df):
             feature_dfs.append(temporal_tendency_helper(df, 'time_of_day', col_name, norm))
             feature_dfs.append(temporal_tendency_helper(df, 'day', col_name, norm))
 
-    # sms
-    feature_dfs.append(temporal_tendency_helper(sms_df, 'time_of_day', 'sms'))
-    feature_dfs.append(temporal_tendency_helper(sms_df, 'day', 'sms'))
-
-    # duration
-    feature_dfs.append(duration_temporal_helper(call_df, 'time_of_day', 'call_dur'))
-    feature_dfs.append(duration_temporal_helper(call_df, 'day', 'call_dur'))
-
+    # merge all temporal features
     for df in feature_dfs:
         comm_features = comm_features.merge(df, on=['pid', 'combined_hash'], how='outer')
 
