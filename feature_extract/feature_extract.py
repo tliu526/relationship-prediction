@@ -243,12 +243,17 @@ def build_intensity_features(comm_features, call_df, sms_df):
     return comm_features    
     
 
-def temporal_tendency_helper(df, group_col, comm_label):
+def temporal_tendency_helper(df, group_col, comm_label, norm=None):
     """Convenience function for extracting temporal tendency features.
     
-    column names will be (group_col + temporal_index + comm_label)
+    column names will be (group_col + temporal_index + comm_label).
+
+    norm is an optional pd.Series to be used for normalization, otherwise
+    default to the summed count of the given df.
 
     Returns a df with the extracted features
+
+    TODO add parameters to handle different normalizations, target counts
     """
     temp_tendency_df = df.groupby(['pid', 'combined_hash', group_col], 
                                   as_index=False).size().unstack(level=-1, fill_value=0)
@@ -256,8 +261,10 @@ def temporal_tendency_helper(df, group_col, comm_label):
     cols = list(temp_tendency_df.columns.values)
     temp_tendency_df = temp_tendency_df.reset_index()
     
-    tot_comms = temp_tendency_df[cols].sum(axis=1)
-    temp_tendency_df[cols] = temp_tendency_df[cols].div(tot_comms, axis=0)
+    if norm is None:
+        norm = temp_tendency_df[cols].sum(axis=1)
+
+    temp_tendency_df[cols] = temp_tendency_df[cols].div(norm, axis=0)
     temp_tendency_df.set_index(['pid', 'combined_hash'], inplace=True)
     temp_tendency_df.rename(columns=lambda x: group_col + '_' + str(x) + '_' + comm_label, inplace=True)
     temp_tendency_df = temp_tendency_df.reset_index()
@@ -267,27 +274,8 @@ def temporal_tendency_helper(df, group_col, comm_label):
 
     return temp_tendency_df
 
-
 def duration_temporal_helper(call_df, group_col, comm_label):
-    """Call duration temporal helper, due to normalization differences.
-
-    """
-    temp_tendency_df = call_df.groupby(['pid', 'combined_hash', group_col])['call_duration'].sum().unstack(level=-1, fill_value=0)
-    # cols = [x for x in range(len(temp_tendency_df.columns.values))]
-    temp_tendency_df = temp_tendency_df.reset_index()
-    cols = list(temp_tendency_df.columns.values)
-
-    tot_calls = call_df.groupby(['pid', 'combined_hash']).count()['call_duration']
-    temp_tendency_df[cols] = temp_tendency_df[cols].div(tot_calls, axis=0)
-    temp_tendency_df.set_index(['pid', 'combined_hash'], inplace=True)
-    temp_tendency_df.rename(columns=lambda x: group_col + '_' + str(x) + '_' + comm_label, inplace=True)
-    temp_tendency_df = temp_tendency_df.reset_index()
-    
-    return temp_tendency_df
-
-
-def duration_temporal_helper(call_df, group_col, comm_label):
-    """Call duration temporal helper, due to normalization differences.
+    """Call duration temporal helper, due to aggregation and normalization differences.
 
     """
     temp_tendency_df = call_df.groupby(['pid', 'combined_hash', group_col])['call_duration'].sum().unstack(level=-1, fill_value=0)
@@ -307,15 +295,37 @@ def duration_temporal_helper(call_df, group_col, comm_label):
 def build_temporal_features(comm_features, call_df, sms_df):
     """Returns comm_features with temporal tendency features.
 
-    Features created:
-    - time_of_day_{0-3}_{call, sms, call_dur}: # {call, sms, call duration} at time of day / total
-    - day_{0-6}_{call, sms, call_dur}: # {call, sms, call duration} at day of week / total
+    Features created over time_of_day_{0-3} and day_{0-6}:
+    - {call, sms, comm}: # {call, sms, comm} at time / total {call, sms, comm}
+    - {call_dur}: sum call_duration at time / total_calls
+    - {long_call, miss_call}_{out, in}: # {length calls, missed calls} at time / {outgoing, incoming} calls
+    - call_select: # calls at time / total comms
+    - out_comm: # outgoing comms at time / total comms
     """
     feature_dfs = []
 
     # calls
     feature_dfs.append(temporal_tendency_helper(call_df, 'time_of_day', 'call'))
     feature_dfs.append(temporal_tendency_helper(call_df, 'day', 'call'))
+
+    # missed/lengthy calls 
+    miss_df = call_df.loc[call_df['comm_direction'] == 'MISSED']
+    long_df = call_df.loc[call_df['call_duration'] > call_df['call_duration'].median()]
+    df_d = {'miss_call': miss_df, 'long_call': long_df}
+
+    out_df = call_df.loc[call_df['comm_direction'] == 'OUTGOING']
+    out_calls = out_df.groupby(['pid', 'combined_hash'], 
+                               as_index=False).count()['comm_direction']
+    in_df = call_df.loc[call_df['comm_direction'] == 'INCOMING']
+    in_calls = in_df.groupby(['pid', 'combined_hash'], 
+                              as_index=False).count()['comm_direction']
+    norm_d = {'out': out_calls, 'in': in_calls}
+
+    for norm_name, norm in norm_d.items():
+        for df_name, df in df_d.items():
+            col_name = df_name + '_' + norm_name
+            feature_dfs.append(temporal_tendency_helper(df, 'time_of_day', col_name, norm))
+            feature_dfs.append(temporal_tendency_helper(df, 'day', col_name, norm))
 
     # sms
     feature_dfs.append(temporal_tendency_helper(sms_df, 'time_of_day', 'sms'))

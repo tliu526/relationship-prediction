@@ -163,7 +163,6 @@ class FeatureExtractTests(unittest.TestCase):
         # call cols
         call_cols = ['time_of_day_2_call', 'time_of_day_3_call', 'day_3_call', 'day_4_call', 'day_5_call',
                      'time_of_day_2_call_dur', 'time_of_day_3_call_dur', 'day_3_call_dur', 'day_4_call_dur', 'day_5_call_dur'] 
-
         tot_call = 6
         tot_durs = 4
         exp_call_dict = {
@@ -171,8 +170,26 @@ class FeatureExtractTests(unittest.TestCase):
             1: [3/tot_call, 3/tot_call, 1/tot_call, 3/tot_call, 2/tot_call, 
                 (129 + 42)/tot_durs, (33 + 59)/tot_durs, 129/tot_durs, (33 + 59)/tot_durs, 42/tot_durs]
         }                     
-
         self.assert_frame_equal_dict(actual_df, exp_call_dict, call_cols)
+
+        # missed cols
+        miss_cols = ['time_of_day_2_miss_call_out', 'time_of_day_3_miss_call_out', 'day_4_miss_call_out', 'day_5_miss_call_out',
+                     'time_of_day_2_miss_call_in', 'time_of_day_3_miss_call_in', 'day_4_miss_call_in', 'day_5_miss_call_in']
+        tot_out = 4   
+        exp_miss_dict = {
+            0: [np.nan] * 8,
+            1: [1/tot_out, 1/tot_out, 1/tot_out, 1/tot_out] + ([np.nan] * 4)
+        }
+        self.assert_frame_equal_dict(actual_df, exp_miss_dict, miss_cols)
+
+        # lengthy cols
+        long_cols = ['time_of_day_2_long_call_out', 'time_of_day_3_long_call_out', 'day_3_long_call_out', 'day_4_long_call_out',
+                     'time_of_day_2_long_call_in', 'time_of_day_3_long_call_in', 'day_3_long_call_in', 'day_4_long_call_in']
+        exp_long_dict = {
+            0: [np.nan] * 8,
+            1: [1/tot_out, 1/tot_out, 1/tot_out, 1/tot_out] + ([np.nan] * 4)
+        }
+        self.assert_frame_equal_dict(actual_df, exp_long_dict, long_cols)
 
 
     def test_build_channel_selection_features(self):
@@ -183,15 +200,12 @@ class FeatureExtractTests(unittest.TestCase):
             1: [4/6, 1]
         }
 
-        expected_df = pd.DataFrame.from_dict(expected_dict).T
-        expected_df.columns = columns        
-
         actual_df = init_feature_df(self.raw_df)
         actual_df = build_count_features(actual_df, self.call_df, self.sms_df,
                                          self.emm_df)
         actual_df = build_channel_selection_features(actual_df, self.raw_df)
 
-        pd.testing.assert_frame_equal(actual_df[columns], expected_df)         
+        self.assert_frame_equal_dict(actual_df, expected_dict, columns)
     
     
     def test_build_avoidance_features(self):
@@ -202,15 +216,12 @@ class FeatureExtractTests(unittest.TestCase):
             1: [np.nan, 2/4, np.nan], 
         }
 
-        expected_df = pd.DataFrame.from_dict(expected_dict).T
-        expected_df.columns = columns
-        
         actual_df = init_feature_df(self.raw_df)
         actual_df = build_avoidance_features(actual_df, 
                                              self.call_df, 
                                              self.sms_df)  
 
-        pd.testing.assert_frame_equal(actual_df[columns], expected_df) 
+        self.assert_frame_equal_dict(actual_df, expected_dict, columns)
 
 
     def test_build_demo_features(self):
