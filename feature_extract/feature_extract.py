@@ -15,6 +15,7 @@ TODO turn DataFrame into a class for better contract?
 
 import numpy as np
 import pandas as pd
+from pandas.tseries.holiday import Holiday, AbstractHolidayCalendar, USThanksgivingDay
 
 DAY_DIVISOR = 6  # 6 hour chunks
 
@@ -48,6 +49,7 @@ def comm_feature_extract(comm_df, ema_df):
     comm_features = build_avoidance_features(comm_features, call_df, sms_df)
     comm_features = build_duration_features(comm_features, call_df)
     comm_features = build_maintenance_features(comm_features, call_df, sms_df)
+    comm_features = build_holiday_features(comm_features, comm_df)
 
     return comm_features
 
@@ -532,6 +534,54 @@ def build_maintenance_features(comm_features, call_df, sms_df):
     for df in feature_dfs:
         comm_features = comm_features.merge(df, on=['pid', 'combined_hash'], how='outer')
     
+    return comm_features
+
+
+class HolidayCalendar(AbstractHolidayCalendar):
+    """Custom holiday calendar to match Min et al.
+    """
+    rules = [
+        Holiday('Christmas', month=12, day=25),
+        Holiday('Valentines', month=2, day=14),
+        Holiday('NewYears', month=1, day=1),
+        USThanksgivingDay
+    ]
+
+
+def filter_by_holiday(comm_df):
+    """Filters the given df by entries that occur on a holiday.
+    """
+    cal = HolidayCalendar()
+    start_date = comm_df['date_days'].min()
+    end_date = comm_df['date_days'].max()
+    holidays = cal.holidays(start=start_date, end=end_date)
+
+    return comm_df.loc[comm_df['date_days'].isin(holidays)]
+
+
+def build_holiday_features(comm_features, comm_df):
+    """Builds holiday communication frequency features.
+    
+    Holidays as defined by Min et al are:
+    - Thanksgiving
+    - Christmas
+    - New Year's Day
+    - Valentine's Day
+
+    features created:
+    - holiday_comms: # outgoing communications on holidays / total communications
+    """
+    holiday_col = 'holiday_comms'
+    holiday_comms = filter_by_holiday(comm_df)
+    holiday_out_comms = holiday_comms.loc[holiday_comms['comm_direction'] == 'OUTGOING']
+    holiday_counts = holiday_out_comms.groupby(['pid', 'combined_hash'], 
+                                               as_index=False)['comm_direction'].count()
+    holiday_counts = holiday_counts.rename({'comm_direction': holiday_col}, axis='columns')
+
+    comm_features = comm_features.merge(holiday_counts, on=['pid', 'combined_hash'], how='outer')
+    comm_features[holiday_col] = comm_features[holiday_col].fillna(0)
+    comm_features[holiday_col] = comm_features[holiday_col] / comm_features['total_comms']
+
     return comm_features
 
 

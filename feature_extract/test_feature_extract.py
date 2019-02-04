@@ -353,7 +353,66 @@ class FeatureExtractTests(unittest.TestCase):
 
         self.assert_frame_equal_dict(actual_df, expected_tot_dict, tot_columns)
 
-    
+
+    def test_filter_by_holiday(self):
+        dates = pd.date_range(start='2019-01-01', end='2019-12-31')
+        test_df = pd.DataFrame(dates, columns=['date_days'])
+
+        holidays = ['2019-01-01', '2019-02-14', '2019-11-28', '2019-12-25']
+        exp_dates = [pd.to_datetime(date) for date in holidays]
+
+        exp_df = pd.DataFrame(exp_dates, columns=['date_days'])
+        actual_df = filter_by_holiday(test_df)
+        actual_df = actual_df.reset_index(drop=True)
+        pd.testing.assert_frame_equal(actual_df, exp_df)
+
+
+    def test_build_holiday_features(self):
+        holiday_col = ['holiday_comms']
+
+        # null case
+        exp_null_dict = {
+            0: [0.0],
+            1: [0.0]
+        }
+
+        actual_df = init_feature_df(self.raw_df)
+        actual_df = build_count_features(actual_df, 
+                                         self.call_df, 
+                                         self.sms_df, 
+                                         self.emm_df)
+        actual_df = build_holiday_features(actual_df, 
+                                           self.raw_df)  
+
+        self.assert_frame_equal_dict(actual_df, exp_null_dict, holiday_col)
+
+        # actual case
+        holiday_strs = ['2019-01-01', '2019-02-14', '2019-11-28', '2019-12-25']
+        holidays = [pd.to_datetime(date) for date in holiday_strs]
+        
+        pids = ['test_pid'] * 10
+        hashes = ['test_hash'] * 10
+        comm_dir = ['INCOMING', 'OUTGOING'] * 5
+        date_days = (holidays*2) + ([pd.to_datetime('2019-01-04')] * 2)
+        total_comms = [10]*10
+
+        cols = ['pid', 'combined_hash', 'comm_direction', 'date_days', 'total_comms']
+
+        data = np.transpose(np.stack([pids, hashes, comm_dir, date_days, total_comms], axis=0))
+        test_df = pd.DataFrame(data, columns=cols)
+        test_features = pd.DataFrame({'pid': pids[:1], 
+                                      'combined_hash': hashes[:1],
+                                      'total_comms': total_comms[:1]})
+        
+        exp_holiday_dict = {
+            0: [4/10]
+        }
+
+        actual_df = build_holiday_features(test_features, test_df)
+
+        self.assert_frame_equal_dict(actual_df, exp_holiday_dict, holiday_col)
+
+        
 
 if __name__ == '__main__':
     unittest.main()
