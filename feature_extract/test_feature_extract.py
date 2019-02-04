@@ -138,14 +138,42 @@ class FeatureExtractTests(unittest.TestCase):
         self.assert_frame_equal_dict(actual_df, expected_mmm_dict, mmm_columns, check_dtype=False)
     
 
-    @unittest.skip("TODO implement")
-    def test_temporal_tendency_helper(self):
-        pass
-
-
-    @unittest.skip("TODO implement")
     def test_build_temporal_features(self):
-        pass
+        # TODO need to add unit tests for all possible columns
+        columns = []
+        
+        for name in ['sms', 'call', 'call_dur']:
+            columns.extend(["time_of_day_{}_{}".format(x, name) for x in range(4)])
+            columns.extend(["day_{}_{}".format(x, name) for x in range(7)])
+
+        actual_df = init_feature_df(self.raw_df)
+        actual_df = build_temporal_features(actual_df, self.call_df, self.sms_df)
+
+        # SMS cols
+        sms_cols = ['time_of_day_2_sms', 'time_of_day_3_sms', 'day_2_sms', 'day_5_sms'] 
+
+        tot_sms = 8
+        exp_sms_dict = {
+            0: [6/tot_sms, 2/tot_sms, 4/tot_sms, 4/tot_sms],
+            1: [np.nan] * 4
+        }
+
+        self.assert_frame_equal_dict(actual_df, exp_sms_dict, sms_cols)
+
+        # call cols
+        call_cols = ['time_of_day_2_call', 'time_of_day_3_call', 'day_3_call', 'day_4_call', 'day_5_call',
+                     'time_of_day_2_call_dur', 'time_of_day_3_call_dur', 'day_3_call_dur', 'day_4_call_dur', 'day_5_call_dur'] 
+
+        tot_call = 6
+        tot_durs = 4
+        exp_call_dict = {
+            0: [np.nan] * 10,
+            1: [3/tot_call, 3/tot_call, 1/tot_call, 3/tot_call, 2/tot_call, 
+                (129 + 42)/tot_durs, (33 + 59)/tot_durs, 129/tot_durs, (33 + 59)/tot_durs, 42/tot_durs]
+        }                     
+
+        self.assert_frame_equal_dict(actual_df, exp_call_dict, call_cols)
+
 
     def test_build_channel_selection_features(self):
         columns = ['out_comm', 'call_tendency']

@@ -16,7 +16,7 @@ TODO turn DataFrame into a class for better contract?
 import numpy as np
 import pandas as pd
 
-DAY_DIVISOR = 4  # 6 hour chunks
+DAY_DIVISOR = 6  # 6 hour chunks
 
 """ Commenting out for unit tests
 __all__ = [
@@ -252,7 +252,8 @@ def temporal_tendency_helper(df, group_col, comm_label):
     """
     temp_tendency_df = df.groupby(['pid', 'combined_hash', group_col], 
                                   as_index=False).size().unstack(level=-1, fill_value=0)
-    cols = [x for x in range(len(temp_tendency_df.columns.values))]
+    #cols = [x for x in range(len(temp_tendency_df.columns.values))]
+    cols = list(temp_tendency_df.columns.values)
     temp_tendency_df = temp_tendency_df.reset_index()
     
     tot_comms = temp_tendency_df[cols].sum(axis=1)
@@ -266,32 +267,66 @@ def temporal_tendency_helper(df, group_col, comm_label):
 
     return temp_tendency_df
 
+
+def duration_temporal_helper(call_df, group_col, comm_label):
+    """Call duration temporal helper, due to normalization differences.
+
+    """
+    temp_tendency_df = call_df.groupby(['pid', 'combined_hash', group_col])['call_duration'].sum().unstack(level=-1, fill_value=0)
+    # cols = [x for x in range(len(temp_tendency_df.columns.values))]
+    temp_tendency_df = temp_tendency_df.reset_index()
+    cols = list(temp_tendency_df.columns.values)
+
+    tot_calls = call_df.groupby(['pid', 'combined_hash']).count()['call_duration']
+    temp_tendency_df[cols] = temp_tendency_df[cols].div(tot_calls, axis=0)
+    temp_tendency_df.set_index(['pid', 'combined_hash'], inplace=True)
+    temp_tendency_df.rename(columns=lambda x: group_col + '_' + str(x) + '_' + comm_label, inplace=True)
+    temp_tendency_df = temp_tendency_df.reset_index()
+    
+    return temp_tendency_df
+
+
+def duration_temporal_helper(call_df, group_col, comm_label):
+    """Call duration temporal helper, due to normalization differences.
+
+    """
+    temp_tendency_df = call_df.groupby(['pid', 'combined_hash', group_col])['call_duration'].sum().unstack(level=-1, fill_value=0)
+    # cols = [x for x in range(len(temp_tendency_df.columns.values))]
+    cols = list(temp_tendency_df.columns.values)
+    
+    tot_calls = call_df.groupby(['pid', 'combined_hash']).count()['call_duration']
+    temp_tendency_df[cols] = temp_tendency_df[cols].div(tot_calls, axis=0)
+    temp_tendency_df = temp_tendency_df.reset_index()
+    temp_tendency_df.set_index(['pid', 'combined_hash'], inplace=True)
+    temp_tendency_df.rename(columns=lambda x: group_col + '_' + str(x) + '_' + comm_label, inplace=True)
+    temp_tendency_df = temp_tendency_df.reset_index()
+    
+    return temp_tendency_df
+
+
 def build_temporal_features(comm_features, call_df, sms_df):
     """Returns comm_features with temporal tendency features.
 
     Features created:
-    - time_of_day_{0-5}_{call, sms}: # {call, sms} at time of day / total
-    - day_{0-6}_{call, sms}: # {call, sms} at day of week / total
+    - time_of_day_{0-3}_{call, sms, call_dur}: # {call, sms, call duration} at time of day / total
+    - day_{0-6}_{call, sms, call_dur}: # {call, sms, call duration} at day of week / total
     """
-    time_of_day_calls = temporal_tendency_helper(call_df, 'time_of_day', 'calls')
-    day_of_week_calls = temporal_tendency_helper(call_df, 'day', 'calls')
+    feature_dfs = []
 
-    time_of_day_sms = temporal_tendency_helper(sms_df, 'time_of_day', 'sms')
-    day_of_week_sms = temporal_tendency_helper(sms_df, 'day', 'sms')
+    # calls
+    feature_dfs.append(temporal_tendency_helper(call_df, 'time_of_day', 'call'))
+    feature_dfs.append(temporal_tendency_helper(call_df, 'day', 'call'))
 
-    comm_features = comm_features.merge(time_of_day_calls, 
-                                        on=['pid', 'combined_hash'], 
-                                        how='outer')
-    comm_features = comm_features.merge(day_of_week_calls, 
-                                        on=['pid', 'combined_hash'], 
-                                        how='outer')
+    # sms
+    feature_dfs.append(temporal_tendency_helper(sms_df, 'time_of_day', 'sms'))
+    feature_dfs.append(temporal_tendency_helper(sms_df, 'day', 'sms'))
 
-    comm_features = comm_features.merge(time_of_day_sms, 
-                                        on=['pid', 'combined_hash'], 
-                                        how='outer')
-    comm_features = comm_features.merge(day_of_week_sms, 
-                                        on=['pid', 'combined_hash'], 
-                                        how='outer')
+    # duration
+    feature_dfs.append(duration_temporal_helper(call_df, 'time_of_day', 'call_dur'))
+    feature_dfs.append(duration_temporal_helper(call_df, 'day', 'call_dur'))
+
+    for df in feature_dfs:
+        comm_features = comm_features.merge(df, on=['pid', 'combined_hash'], how='outer')
 
     # for some reason, merge converts the zeros into nans
     # comm_features = comm_features.fillna(0)
