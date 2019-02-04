@@ -398,6 +398,18 @@ def build_duration_features(comm_features, call_df):
         comm_features = comm_features.merge(max_dur, on=['pid', 'combined_hash'], how='outer')
         comm_features = comm_features.merge(med_dur, on=['pid', 'combined_hash'], how='outer')
 
+    # total duration
+    tot_dur = call_df.groupby(['pid', 'combined_hash'], as_index=False)[call_dur].sum()
+    tot_dur = tot_dur.rename({call_dur: "tot_call_duration"}, axis='columns')
+    comm_features = comm_features.merge(tot_dur, on=['pid', 'combined_hash'], how='outer')
+
+    # lengthy features
+    pop_median = call_df[call_dur].median()
+    long_calls = call_df.loc[call_df[call_dur] > pop_median]
+    long_calls = long_calls.groupby(['pid', 'combined_hash'], as_index=False)[call_dur].count()
+    long_calls = long_calls.rename({call_dur: 'tot_long_calls'}, axis='columns')
+    comm_features = comm_features.merge(long_calls, on=['pid', 'combined_hash'], how='outer')
+
     return comm_features
 
 

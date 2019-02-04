@@ -19,6 +19,19 @@ from feature_extract import *
 
 class FeatureExtractTests(unittest.TestCase):
     
+    def assert_frame_equal_dict(self, actual_df, expected_dict, columns, check_dtype=True):
+        """Helper function for doing df to dict comparison on the given columns.
+
+        """
+
+        expected_df = pd.DataFrame.from_dict(expected_dict).T
+        expected_df.columns = columns
+
+        pd.testing.assert_frame_equal(actual_df[columns], 
+                                      expected_df, 
+                                      check_dtype=check_dtype) 
+
+    
     def setUp(self):
         self.pid1 = '1002060'
         self.pid2 = '1041304'
@@ -78,11 +91,7 @@ class FeatureExtractTests(unittest.TestCase):
                 0, 0, 3, 58, 3/58, 0, 3/58, 10]
         }
 
-        expected_df = pd.DataFrame.from_dict(expected_dict).T
-        expected_df.columns = columns
-
-        pd.testing.assert_frame_equal(actual_df[columns], expected_df, check_dtype=False)
-
+        self.assert_frame_equal_dict(actual_df, expected_dict, columns, check_dtype=False)
     
     def test_build_intensity_features(self):
         # tests mean and std
@@ -114,10 +123,7 @@ class FeatureExtractTests(unittest.TestCase):
                                          self.emm_df)
         actual_df = build_intensity_features(actual_df, self.call_df, self.sms_df)
 
-        expected_ms_df = pd.DataFrame.from_dict(expected_mean_std_dict).T
-        expected_ms_df.columns = mean_std_columns
-
-        pd.testing.assert_frame_equal(actual_df[mean_std_columns], expected_ms_df, check_dtype=False)
+        self.assert_frame_equal_dict(actual_df, expected_mean_std_dict, mean_std_columns, check_dtype=False)
 
         # test min, med, max
         mmm_columns = ['min_out_call', 'med_out_call', 'max_out_call', 
@@ -129,11 +135,8 @@ class FeatureExtractTests(unittest.TestCase):
             1: [1, 1, 2, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan],
         }
 
-        expected_mmm_df = pd.DataFrame.from_dict(expected_mmm_dict).T
-        expected_mmm_df.columns = mmm_columns
-
-        pd.testing.assert_frame_equal(actual_df[mmm_columns], expected_mmm_df, check_dtype=False)
-
+        self.assert_frame_equal_dict(actual_df, expected_mmm_dict, mmm_columns, check_dtype=False)
+    
 
     @unittest.skip("TODO implement")
     def test_temporal_tendency_helper(self):
@@ -214,7 +217,11 @@ class FeatureExtractTests(unittest.TestCase):
 
 
     def test_build_duration_features(self):
-        
+
+        actual_df = init_feature_df(self.raw_df)
+        actual_df = build_duration_features(actual_df, 
+                                            self.call_df)  
+
         # test avg, med, max in/out
         amm_columns = ['avg_in_duration', 'med_in_duration', 'max_in_duration',
                        'avg_out_duration', 'med_out_duration', 'max_out_duration']
@@ -224,20 +231,26 @@ class FeatureExtractTests(unittest.TestCase):
         pid2_med_out_dur = (42 + 59) / 2
         pid2_max_out_dur = 129
         
-        expected_amm_dict ={
+        expected_amm_dict = {
             0: [np.nan] * 6,
             1: [np.nan, np.nan, np.nan, pid2_avg_out_dur, pid2_med_out_dur, pid2_max_out_dur]
         }
 
-        expected_amm_df = pd.DataFrame.from_dict(expected_amm_dict).T
-        expected_amm_df.columns = amm_columns
-        
-        actual_df = init_feature_df(self.raw_df)
-        actual_df = build_duration_features(actual_df, 
-                                            self.call_df)  
+        self.assert_frame_equal_dict(actual_df, expected_amm_dict, amm_columns)
 
-        pd.testing.assert_frame_equal(actual_df[amm_columns], expected_amm_df) 
+        # total, lengthy features
+        tot_columns = ['tot_call_duration', 'tot_long_calls']
 
+        pid2_tot_dur = (129 + 42 + 33 + 59)
+        pid2_tot_long_calls = 2
+        expected_tot_dict = {
+            0: [np.nan, np.nan],
+            1: [pid2_tot_dur, pid2_tot_long_calls]
+        }
+
+        self.assert_frame_equal_dict(actual_df, expected_tot_dict, tot_columns)
+
+    
 
 if __name__ == '__main__':
     unittest.main()
