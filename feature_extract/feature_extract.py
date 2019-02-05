@@ -15,8 +15,9 @@ TODO turn DataFrame into a class for better contract?
 
 import numpy as np
 import pandas as pd
+from pandas.tseries.holiday import Holiday, AbstractHolidayCalendar, USThanksgivingDay
 
-DAY_DIVISOR = 6  # 4 hour chunks
+DAY_DIVISOR = 6  # 6 hour chunks
 
 """ Commenting out for unit tests
 __all__ = [
@@ -47,8 +48,11 @@ def comm_feature_extract(comm_df, ema_df):
     comm_features = build_channel_selection_features(comm_features, comm_df)
     comm_features = build_avoidance_features(comm_features, call_df, sms_df)
     comm_features = build_duration_features(comm_features, call_df)
+    comm_features = build_maintenance_features(comm_features, call_df, sms_df)
+    comm_features = build_holiday_features(comm_features, comm_df)
 
     return comm_features
+
 
 def init_feature_df(raw_df):
     """Initializes the processed feature dataframe from raw_df.
@@ -243,20 +247,28 @@ def build_intensity_features(comm_features, call_df, sms_df):
     return comm_features    
     
 
-def temporal_tendency_helper(df, group_col, comm_label):
+def temporal_tendency_helper(df, group_col, comm_label, norm=None):
     """Convenience function for extracting temporal tendency features.
     
-    column names will be (group_col + temporal_index + comm_label)
+    column names will be (group_col + temporal_index + comm_label).
+
+    norm is an optional pd.Series to be used for normalization, otherwise
+    default to the summed count of the given df.
 
     Returns a df with the extracted features
+
+    TODO add parameters to handle different normalizations, target counts
     """
     temp_tendency_df = df.groupby(['pid', 'combined_hash', group_col], 
                                   as_index=False).size().unstack(level=-1, fill_value=0)
-    cols = [x for x in range(len(temp_tendency_df.columns.values))]
+    #cols = [x for x in range(len(temp_tendency_df.columns.values))]
+    cols = list(temp_tendency_df.columns.values)
     temp_tendency_df = temp_tendency_df.reset_index()
     
-    tot_comms = temp_tendency_df[cols].sum(axis=1)
-    temp_tendency_df[cols] = temp_tendency_df[cols].div(tot_comms, axis=0)
+    if norm is None:
+        norm = temp_tendency_df[cols].sum(axis=1)
+
+    temp_tendency_df[cols] = temp_tendency_df[cols].div(norm, axis=0)
     temp_tendency_df.set_index(['pid', 'combined_hash'], inplace=True)
     temp_tendency_df.rename(columns=lambda x: group_col + '_' + str(x) + '_' + comm_label, inplace=True)
     temp_tendency_df = temp_tendency_df.reset_index()
@@ -266,39 +278,82 @@ def temporal_tendency_helper(df, group_col, comm_label):
 
     return temp_tendency_df
 
+
+def duration_temporal_helper(call_df, group_col, comm_label):
+    """Call duration temporal helper, due to aggregation and normalization differences.
+
+    """
+    temp_tendency_df = call_df.groupby(['pid', 'combined_hash', group_col])['call_duration'].sum().unstack(level=-1, fill_value=0)
+    # cols = [x for x in range(len(temp_tendency_df.columns.values))]
+    cols = list(temp_tendency_df.columns.values)
+    
+    tot_calls = call_df.groupby(['pid', 'combined_hash']).count()['call_duration']
+    temp_tendency_df[cols] = temp_tendency_df[cols].div(tot_calls, axis=0)
+    temp_tendency_df = temp_tendency_df.reset_index()
+    temp_tendency_df.set_index(['pid', 'combined_hash'], inplace=True)
+    temp_tendency_df.rename(columns=lambda x: group_col + '_' + str(x) + '_' + comm_label, inplace=True)
+    temp_tendency_df = temp_tendency_df.reset_index()
+    
+    return temp_tendency_df
+
+
 def build_temporal_features(comm_features, call_df, sms_df):
     """Returns comm_features with temporal tendency features.
 
-    Features created:
-    - time_of_day_{0-5}_{call, sms}: # {call, sms} at time of day / total
-    - day_{0-6}_{call, sms}: # {call, sms} at day of week / total
+    Features created over time_of_day_{0-3} and day_{0-6}:
+    - {call, sms, comm}: # {call, sms, comm} at time / total {call, sms, comm}
+    - {call_dur}: sum call_duration at time / total_calls
+    - {long_call, miss_call}_{out, in}: # {length calls, missed calls} at time / {outgoing, incoming} calls
+    - call_select: # calls at time / total comms
+    - out_comm: # outgoing comms at time / total comms
     """
-    time_of_day_calls = temporal_tendency_helper(call_df, 'time_of_day', 'calls')
-    day_of_week_calls = temporal_tendency_helper(call_df, 'day', 'calls')
+    feature_dfs = []
 
-    time_of_day_sms = temporal_tendency_helper(sms_df, 'time_of_day', 'sms')
-    day_of_week_sms = temporal_tendency_helper(sms_df, 'day', 'sms')
+    # calls
+    feature_dfs.append(temporal_tendency_helper(call_df, 'time_of_day', 'call'))
+    feature_dfs.append(temporal_tendency_helper(call_df, 'day', 'call'))
 
-    # print(time_of_day_calls.isnull().any().sum())
-    # print(day_of_week_calls.isnull().any().sum())
-    # print(time_of_day_sms.isnull().any().sum())
-    # print(day_of_week_sms.isnull().any().sum())
+    # sms
+    feature_dfs.append(temporal_tendency_helper(sms_df, 'time_of_day', 'sms'))
+    feature_dfs.append(temporal_tendency_helper(sms_df, 'day', 'sms'))
+
+    # duration
+    feature_dfs.append(duration_temporal_helper(call_df, 'time_of_day', 'call_dur'))
+    feature_dfs.append(duration_temporal_helper(call_df, 'day', 'call_dur'))
+
+    # comms
+    comm_df = call_df.append(sms_df)
+    feature_dfs.append(temporal_tendency_helper(comm_df, 'time_of_day', 'comm'))
+    feature_dfs.append(temporal_tendency_helper(comm_df, 'day', 'comm'))
+    # out comms
+    out_comm = comm_df.loc[comm_df['comm_direction'] == 'OUTGOING']
+    tot_comms = comm_df.groupby(['pid', 'combined_hash'], 
+                                 as_index=False).count()['comm_direction']
+    feature_dfs.append(temporal_tendency_helper(out_comm, 'time_of_day', 'comm_out', tot_comms))
+    feature_dfs.append(temporal_tendency_helper(out_comm, 'day', 'comm_out', tot_comms))    
     
-    # print(time_of_day_calls.columns)
+    # missed/lengthy calls 
+    miss_df = call_df.loc[call_df['comm_direction'] == 'MISSED']
+    long_df = call_df.loc[call_df['call_duration'] > call_df['call_duration'].median()]
+    df_d = {'miss_call': miss_df, 'long_call': long_df}
 
-    comm_features = comm_features.merge(time_of_day_calls, 
-                                        on=['pid', 'combined_hash'], 
-                                        how='outer')
-    comm_features = comm_features.merge(day_of_week_calls, 
-                                        on=['pid', 'combined_hash'], 
-                                        how='outer')
+    out_df = call_df.loc[call_df['comm_direction'] == 'OUTGOING']
+    out_calls = out_df.groupby(['pid', 'combined_hash'], 
+                               as_index=False).count()['comm_direction']
+    in_df = call_df.loc[call_df['comm_direction'] == 'INCOMING']
+    in_calls = in_df.groupby(['pid', 'combined_hash'], 
+                              as_index=False).count()['comm_direction']
+    norm_d = {'out': out_calls, 'in': in_calls}
 
-    comm_features = comm_features.merge(time_of_day_sms, 
-                                        on=['pid', 'combined_hash'], 
-                                        how='outer')
-    comm_features = comm_features.merge(day_of_week_sms, 
-                                        on=['pid', 'combined_hash'], 
-                                        how='outer')
+    for norm_name, norm in norm_d.items():
+        for df_name, df in df_d.items():
+            col_name = df_name + '_' + norm_name
+            feature_dfs.append(temporal_tendency_helper(df, 'time_of_day', col_name, norm))
+            feature_dfs.append(temporal_tendency_helper(df, 'day', col_name, norm))
+
+    # merge all temporal features
+    for df in feature_dfs:
+        comm_features = comm_features.merge(df, on=['pid', 'combined_hash'], how='outer')
 
     # for some reason, merge converts the zeros into nans
     # comm_features = comm_features.fillna(0)
@@ -375,28 +430,157 @@ def build_avoidance_features(comm_features, call_df, sms_df):
 def build_duration_features(comm_features, call_df):
     """Builds features associated with call duration.
 
+    Features created:
+    - {avg, med, max}_{in, out}_duration
+    - tot_call_duration: sum of all call duration
+    - tot_long_calls: number of lengthy calls (double the median population len)
     """
     call_dur = 'call_duration'
 
-    # incoming features
-    in_call_df = call_df.loc[call_df['comm_direction'] == 'INCOMING']
-    avg_in_dur = in_call_df.groupby(['pid', 'combined_hash'], as_index=False)[call_dur].mean()
-    avg_in_dur = avg_in_dur.rename({call_dur: 'avg_in_duration'}, axis='columns')
-    max_in_dur = in_call_df.groupby(['pid', 'combined_hash'], as_index=False)[call_dur].max()
-    max_in_dur = max_in_dur.rename({call_dur: 'max_in_duration'}, axis='columns')
+    direction_tup = [('in', 'INCOMING'), ('out', 'OUTGOING')]
 
-    comm_features = comm_features.merge(avg_in_dur, on=['pid', 'combined_hash'], how='outer')
-    comm_features = comm_features.merge(max_in_dur, on=['pid', 'combined_hash'], how='outer')
+    # in/out features
+    for name, comm_dir in direction_tup:
+        avg_col = "avg_{}_duration".format(name)
+        max_col = "max_{}_duration".format(name)
+        med_col = "med_{}_duration".format(name)
 
-    # outgoing features
-    out_call_df = call_df.loc[call_df['comm_direction'] == 'OUTGOING']
-    avg_out_dur = out_call_df.groupby(['pid', 'combined_hash'], as_index=False)[call_dur].mean()
-    avg_out_dur = avg_out_dur.rename({call_dur: 'avg_out_duration'}, axis='columns')
-    max_out_dur = out_call_df.groupby(['pid', 'combined_hash'], as_index=False)[call_dur].max()
-    max_out_dur = max_out_dur.rename({call_dur: 'max_out_duration'}, axis='columns')
+        dir_call_df = call_df.loc[call_df['comm_direction'] == comm_dir]
 
-    comm_features = comm_features.merge(avg_out_dur, on=['pid', 'combined_hash'], how='outer')
-    comm_features = comm_features.merge(max_out_dur, on=['pid', 'combined_hash'], how='outer')
+        avg_dur = dir_call_df.groupby(['pid', 'combined_hash'], as_index=False)[call_dur].mean()
+        avg_dur = avg_dur.rename({call_dur: avg_col}, axis='columns')
+
+        max_dur = dir_call_df.groupby(['pid', 'combined_hash'], as_index=False)[call_dur].max()
+        max_dur = max_dur.rename({call_dur: max_col}, axis='columns')
+        
+        med_dur = dir_call_df.groupby(['pid', 'combined_hash'], as_index=False)[call_dur].median()
+        med_dur = med_dur.rename({call_dur: med_col}, axis='columns')
+
+        comm_features = comm_features.merge(avg_dur, on=['pid', 'combined_hash'], how='outer')
+        comm_features = comm_features.merge(max_dur, on=['pid', 'combined_hash'], how='outer')
+        comm_features = comm_features.merge(med_dur, on=['pid', 'combined_hash'], how='outer')
+
+    # total duration
+    tot_dur = call_df.groupby(['pid', 'combined_hash'], as_index=False)[call_dur].sum()
+    tot_dur = tot_dur.rename({call_dur: "tot_call_duration"}, axis='columns')
+    comm_features = comm_features.merge(tot_dur, on=['pid', 'combined_hash'], how='outer')
+
+    # lengthy features
+    pop_median = call_df[call_dur].median()
+    long_calls = call_df.loc[call_df[call_dur] > pop_median]
+    long_calls = long_calls.groupby(['pid', 'combined_hash'], as_index=False)[call_dur].count()
+    long_calls = long_calls.rename({call_dur: 'tot_long_calls'}, axis='columns')
+    comm_features = comm_features.merge(long_calls, on=['pid', 'combined_hash'], how='outer')
+
+    return comm_features
+
+
+def maintenance_features_helper(group_df, col_name, lookback, norm_df):
+    """Helper function to compute last lookback week counts.
+
+    Returns a df with the aggregated counts with column {col_name}_last_{lookback}_wks
+    """
+    group_df = group_df.reset_index()
+    target_col = group_df.columns.values[-1] # last col is the target col
+    out_col = col_name + "_last_" + str(lookback) + "_wks" 
+    
+    comm_wks = group_df.groupby(['pid', 'combined_hash'], as_index=False).tail(lookback)
+    comm_wks = comm_wks.groupby(['pid', 'combined_hash'], as_index=False)[target_col].sum()
+    comm_wks = comm_wks.rename({target_col: out_col}, axis='columns')
+    
+    norm_col = norm_df.columns.values[-1]
+
+    comm_wks = comm_wks.merge(norm_df, on=['pid', 'combined_hash'], how='outer')
+    comm_wks[out_col] = comm_wks[out_col] / comm_wks[norm_col]
+    
+    return comm_wks[['pid', 'combined_hash', out_col]]
+
+
+def build_maintenance_features(comm_features, call_df, sms_df):
+    """Builds maintenance cost features for call, sms, comm.
+
+    Features created:
+    - {call, sms, comm}_last_{2, 6}_wks: # {call, sms, comms} over the past {2,6} weeks / total {call, sms, comms}
+    - call_dur_last{2, 6}_wks: sum of call duration over the past {2,6} weeks / total calls
+    """
+    group_key = ['pid', 'combined_hash', pd.Grouper(key='date_days', freq='W')]
+
+    feature_dfs = []
+
+    # calls
+    call_group = call_df.groupby(group_key)['contact_type'].count()
+    tot_calls = comm_features[['pid', 'combined_hash', 'total_calls']]
+    feature_dfs.append(maintenance_features_helper(call_group, 'call', 2, tot_calls))
+    feature_dfs.append(maintenance_features_helper(call_group, 'call', 6, tot_calls))
+
+    # sms
+    sms_group = sms_df.groupby(group_key)['contact_type'].count()
+    tot_sms = comm_features[['pid', 'combined_hash', 'total_sms']]
+    feature_dfs.append(maintenance_features_helper(sms_group, 'sms', 2, tot_sms))
+    feature_dfs.append(maintenance_features_helper(sms_group, 'sms', 6, tot_sms))
+
+    # duration
+    dur_group = call_df.groupby(group_key)['call_duration'].sum()
+    feature_dfs.append(maintenance_features_helper(dur_group, 'call_dur', 2, tot_calls))
+    feature_dfs.append(maintenance_features_helper(dur_group, 'call_dur', 6, tot_calls))
+    
+    # total comms
+    comm_df = call_df.append(sms_df)
+    comm_group = comm_df.groupby(group_key)['contact_type'].count()
+    tot_comms = comm_features[['pid', 'combined_hash', 'total_comms']]
+    feature_dfs.append(maintenance_features_helper(comm_group, 'comm', 2, tot_comms))
+    feature_dfs.append(maintenance_features_helper(comm_group, 'comm', 6, tot_comms))
+
+    for df in feature_dfs:
+        comm_features = comm_features.merge(df, on=['pid', 'combined_hash'], how='outer')
+    
+    return comm_features
+
+
+class HolidayCalendar(AbstractHolidayCalendar):
+    """Custom holiday calendar to match Min et al.
+    """
+    rules = [
+        Holiday('Christmas', month=12, day=25),
+        Holiday('Valentines', month=2, day=14),
+        Holiday('NewYears', month=1, day=1),
+        USThanksgivingDay
+    ]
+
+
+def filter_by_holiday(comm_df):
+    """Filters the given df by entries that occur on a holiday.
+    """
+    cal = HolidayCalendar()
+    start_date = comm_df['date_days'].min()
+    end_date = comm_df['date_days'].max()
+    holidays = cal.holidays(start=start_date, end=end_date)
+
+    return comm_df.loc[comm_df['date_days'].isin(holidays)]
+
+
+def build_holiday_features(comm_features, comm_df):
+    """Builds holiday communication frequency features.
+    
+    Holidays as defined by Min et al are:
+    - Thanksgiving
+    - Christmas
+    - New Year's Day
+    - Valentine's Day
+
+    features created:
+    - holiday_comms: # outgoing communications on holidays / total communications
+    """
+    holiday_col = 'holiday_comms'
+    holiday_comms = filter_by_holiday(comm_df)
+    holiday_out_comms = holiday_comms.loc[holiday_comms['comm_direction'] == 'OUTGOING']
+    holiday_counts = holiday_out_comms.groupby(['pid', 'combined_hash'], 
+                                               as_index=False)['comm_direction'].count()
+    holiday_counts = holiday_counts.rename({'comm_direction': holiday_col}, axis='columns')
+
+    comm_features = comm_features.merge(holiday_counts, on=['pid', 'combined_hash'], how='outer')
+    comm_features[holiday_col] = comm_features[holiday_col].fillna(0)
+    comm_features[holiday_col] = comm_features[holiday_col] / comm_features['total_comms']
 
     return comm_features
 
@@ -404,6 +588,8 @@ def build_duration_features(comm_features, call_df):
 def build_nan_features(comm_features, fill_val=0):
     """Adds additional feature columns for nans and fills NaNs with fill_val.
 
+    features created:
+    - {col}_nan_indicator: one-hot column indicating whether 
     """
     comm_indicator = comm_features.isnull().astype(int).add_suffix("_nan_indicator")
     # keep indicator cols that correspond to cols with NaNs
@@ -415,6 +601,9 @@ def build_nan_features(comm_features, fill_val=0):
     if fill_val == 'mean':
         print('filling mean')
         fill_val = comm_features.mean()
+    if fill_val == 'median':
+        print('filling median')
+        fill_val = comm_features.median()
     
     comm_features = comm_features.fillna(fill_val)
 
@@ -467,8 +656,7 @@ def build_demo_features(comm_df, demo_df, age_gender_only=True):
 
     Defaults to adding only age and gender.
 
-    TODO need to handle ordinal variables: live_together
-
+    TODO how to handle ordinal variables?
     """
     demo_cols = ['age', 'gender', 'education', 'employment', 'live_together', 'race', 'ethnicity', 'marital_status']
     if age_gender_only:

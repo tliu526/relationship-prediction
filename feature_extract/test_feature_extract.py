@@ -19,6 +19,19 @@ from feature_extract import *
 
 class FeatureExtractTests(unittest.TestCase):
     
+    def assert_frame_equal_dict(self, actual_df, expected_dict, columns, check_dtype=True):
+        """Helper function for doing df to dict comparison on the given columns.
+
+        """
+
+        expected_df = pd.DataFrame.from_dict(expected_dict).T
+        expected_df.columns = columns
+
+        pd.testing.assert_frame_equal(actual_df[columns], 
+                                      expected_df, 
+                                      check_dtype=check_dtype) 
+
+    
     def setUp(self):
         self.pid1 = '1002060'
         self.pid2 = '1041304'
@@ -78,11 +91,7 @@ class FeatureExtractTests(unittest.TestCase):
                 0, 0, 3, 58, 3/58, 0, 3/58, 10]
         }
 
-        expected_df = pd.DataFrame.from_dict(expected_dict).T
-        expected_df.columns = columns
-
-        pd.testing.assert_frame_equal(actual_df[columns], expected_df, check_dtype=False)
-
+        self.assert_frame_equal_dict(actual_df, expected_dict, columns, check_dtype=False)
     
     def test_build_intensity_features(self):
         # tests mean and std
@@ -114,10 +123,7 @@ class FeatureExtractTests(unittest.TestCase):
                                          self.emm_df)
         actual_df = build_intensity_features(actual_df, self.call_df, self.sms_df)
 
-        expected_ms_df = pd.DataFrame.from_dict(expected_mean_std_dict).T
-        expected_ms_df.columns = mean_std_columns
-
-        pd.testing.assert_frame_equal(actual_df[mean_std_columns], expected_ms_df, check_dtype=False)
+        self.assert_frame_equal_dict(actual_df, expected_mean_std_dict, mean_std_columns, check_dtype=False)
 
         # test min, med, max
         mmm_columns = ['min_out_call', 'med_out_call', 'max_out_call', 
@@ -129,20 +135,82 @@ class FeatureExtractTests(unittest.TestCase):
             1: [1, 1, 2, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan],
         }
 
-        expected_mmm_df = pd.DataFrame.from_dict(expected_mmm_dict).T
-        expected_mmm_df.columns = mmm_columns
+        self.assert_frame_equal_dict(actual_df, expected_mmm_dict, mmm_columns, check_dtype=False)
+    
 
-        pd.testing.assert_frame_equal(actual_df[mmm_columns], expected_mmm_df, check_dtype=False)
-
-
-    @unittest.skip("TODO implement")
-    def test_temporal_tendency_helper(self):
-        pass
-
-
-    @unittest.skip("TODO implement")
     def test_build_temporal_features(self):
-        pass
+        # TODO need to add unit tests for all possible columns
+        columns = []
+        
+        for name in ['sms', 'call', 'call_dur']:
+            columns.extend(["time_of_day_{}_{}".format(x, name) for x in range(4)])
+            columns.extend(["day_{}_{}".format(x, name) for x in range(7)])
+
+        actual_df = init_feature_df(self.raw_df)
+        actual_df = build_temporal_features(actual_df, self.call_df, self.sms_df)
+
+        # SMS cols
+        sms_cols = ['time_of_day_2_sms', 'time_of_day_3_sms', 'day_2_sms', 'day_5_sms'] 
+
+        tot_sms = 8
+        exp_sms_dict = {
+            0: [6/tot_sms, 2/tot_sms, 4/tot_sms, 4/tot_sms],
+            1: [np.nan] * 4
+        }
+
+        self.assert_frame_equal_dict(actual_df, exp_sms_dict, sms_cols)
+
+        # call cols
+        call_cols = ['time_of_day_2_call', 'time_of_day_3_call', 'day_3_call', 'day_4_call', 'day_5_call',
+                     'time_of_day_2_call_dur', 'time_of_day_3_call_dur', 'day_3_call_dur', 'day_4_call_dur', 'day_5_call_dur'] 
+        tot_call = 6
+        tot_durs = 4
+        exp_call_dict = {
+            0: [np.nan] * 10,
+            1: [3/tot_call, 3/tot_call, 1/tot_call, 3/tot_call, 2/tot_call, 
+                (129 + 42)/tot_durs, (33 + 59)/tot_durs, 129/tot_durs, (33 + 59)/tot_durs, 42/tot_durs]
+        }                     
+        self.assert_frame_equal_dict(actual_df, exp_call_dict, call_cols)
+
+        # comm cols
+        comm_cols = ['time_of_day_2_comm', 'time_of_day_3_comm', 
+                     'day_2_comm', 'day_3_comm', 'day_4_comm', 'day_5_comm']
+        pid1_tot_comms = 8
+        pid2_tot_comms = 6
+        exp_comm_dict = {
+            0: [pid1_count/pid1_tot_comms for pid1_count in [6, 2, 4, 0, 0, 4]],
+            1: [pid2_count/pid2_tot_comms for pid2_count in [3, 3, 0, 1, 3, 2]]
+        }
+        self.assert_frame_equal_dict(actual_df, exp_comm_dict, comm_cols)
+
+        # out comm
+        out_cols = ['time_of_day_2_comm_out', 'time_of_day_3_comm_out', 
+                    'day_2_comm_out', 'day_3_comm_out', 'day_4_comm_out', 'day_5_comm_out']
+        exp_out_dict = {
+            0: [pid1_count/pid1_tot_comms for pid1_count in [1, 1, 1, 0, 0, 1]],
+            1: [pid2_count/pid2_tot_comms for pid2_count in [2, 2, 0, 1, 2, 1]]
+        }
+        self.assert_frame_equal_dict(actual_df, exp_out_dict, out_cols)
+
+        # missed cols
+        miss_cols = ['time_of_day_2_miss_call_out', 'time_of_day_3_miss_call_out', 'day_4_miss_call_out', 'day_5_miss_call_out',
+                     'time_of_day_2_miss_call_in', 'time_of_day_3_miss_call_in', 'day_4_miss_call_in', 'day_5_miss_call_in']
+        tot_out = 4   
+        exp_miss_dict = {
+            0: [np.nan] * 8,
+            1: [1/tot_out, 1/tot_out, 1/tot_out, 1/tot_out] + ([np.nan] * 4)
+        }
+        self.assert_frame_equal_dict(actual_df, exp_miss_dict, miss_cols)
+
+        # lengthy cols
+        long_cols = ['time_of_day_2_long_call_out', 'time_of_day_3_long_call_out', 'day_3_long_call_out', 'day_4_long_call_out',
+                     'time_of_day_2_long_call_in', 'time_of_day_3_long_call_in', 'day_3_long_call_in', 'day_4_long_call_in']
+        exp_long_dict = {
+            0: [np.nan] * 8,
+            1: [1/tot_out, 1/tot_out, 1/tot_out, 1/tot_out] + ([np.nan] * 4)
+        }
+        self.assert_frame_equal_dict(actual_df, exp_long_dict, long_cols)
+
 
     def test_build_channel_selection_features(self):
         columns = ['out_comm', 'call_tendency']
@@ -152,15 +220,12 @@ class FeatureExtractTests(unittest.TestCase):
             1: [4/6, 1]
         }
 
-        expected_df = pd.DataFrame.from_dict(expected_dict).T
-        expected_df.columns = columns        
-
         actual_df = init_feature_df(self.raw_df)
         actual_df = build_count_features(actual_df, self.call_df, self.sms_df,
                                          self.emm_df)
         actual_df = build_channel_selection_features(actual_df, self.raw_df)
 
-        pd.testing.assert_frame_equal(actual_df[columns], expected_df)         
+        self.assert_frame_equal_dict(actual_df, expected_dict, columns)
     
     
     def test_build_avoidance_features(self):
@@ -171,15 +236,56 @@ class FeatureExtractTests(unittest.TestCase):
             1: [np.nan, 2/4, np.nan], 
         }
 
-        expected_df = pd.DataFrame.from_dict(expected_dict).T
-        expected_df.columns = columns
-        
         actual_df = init_feature_df(self.raw_df)
         actual_df = build_avoidance_features(actual_df, 
                                              self.call_df, 
                                              self.sms_df)  
 
-        pd.testing.assert_frame_equal(actual_df[columns], expected_df) 
+        self.assert_frame_equal_dict(actual_df, expected_dict, columns)
+
+
+    def test_build_maintenance_features(self):
+        actual_df = init_feature_df(self.raw_df)
+        actual_df = build_count_features(actual_df, 
+                                         self.call_df, 
+                                         self.sms_df, 
+                                         self.emm_df)
+        actual_df = build_maintenance_features(actual_df, 
+                                             self.call_df, 
+                                             self.sms_df)  
+
+        # test sms
+        sms_cols = ['sms_last_2_wks', 'sms_last_6_wks']
+        exp_sms_dict = {
+            0: [1, 1],
+            1: [np.nan, np.nan]
+        }
+        self.assert_frame_equal_dict(actual_df, exp_sms_dict, sms_cols)
+
+        # test calls
+        call_cols = ['call_last_2_wks', 'call_last_6_wks']
+        tot_calls = 6
+        exp_call_dict = {
+            0: [np.nan, np.nan],
+            1: [5/tot_calls, 1]
+        }
+        self.assert_frame_equal_dict(actual_df, exp_call_dict, call_cols)
+
+        # test duration
+        dur_cols = ['call_dur_last_2_wks', 'call_dur_last_6_wks']
+        exp_dur_dict = {
+            0: [np.nan, np.nan],
+            1: [(59 + 42 + 33)/tot_calls, (59 + 42 + 33 + 129)/tot_calls]
+        }
+        self.assert_frame_equal_dict(actual_df, exp_dur_dict, dur_cols)
+
+        # test comm
+        comm_cols = ['comm_last_2_wks', 'comm_last_6_wks']
+        exp_comm_dict = {
+            0: [1, 1],
+            1: [5/tot_calls, 1]
+        }
+        self.assert_frame_equal_dict(actual_df, exp_comm_dict, comm_cols)
 
 
     def test_build_demo_features(self):
@@ -211,6 +317,102 @@ class FeatureExtractTests(unittest.TestCase):
         actual_df = build_demo_features(actual_df, demo_df)
 
         pd.testing.assert_frame_equal(actual_df[columns], expected_df, check_dtype=False)
+
+
+    def test_build_duration_features(self):
+
+        actual_df = init_feature_df(self.raw_df)
+        actual_df = build_duration_features(actual_df, 
+                                            self.call_df)  
+
+        # test avg, med, max in/out
+        amm_columns = ['avg_in_duration', 'med_in_duration', 'max_in_duration',
+                       'avg_out_duration', 'med_out_duration', 'max_out_duration']
+        
+
+        pid2_avg_out_dur = (129 + 42 + 33 + 59) / 4
+        pid2_med_out_dur = (42 + 59) / 2
+        pid2_max_out_dur = 129
+        
+        expected_amm_dict = {
+            0: [np.nan] * 6,
+            1: [np.nan, np.nan, np.nan, pid2_avg_out_dur, pid2_med_out_dur, pid2_max_out_dur]
+        }
+
+        self.assert_frame_equal_dict(actual_df, expected_amm_dict, amm_columns)
+
+        # total, lengthy features
+        tot_columns = ['tot_call_duration', 'tot_long_calls']
+
+        pid2_tot_dur = (129 + 42 + 33 + 59)
+        pid2_tot_long_calls = 2
+        expected_tot_dict = {
+            0: [np.nan, np.nan],
+            1: [pid2_tot_dur, pid2_tot_long_calls]
+        }
+
+        self.assert_frame_equal_dict(actual_df, expected_tot_dict, tot_columns)
+
+
+    def test_filter_by_holiday(self):
+        dates = pd.date_range(start='2019-01-01', end='2019-12-31')
+        test_df = pd.DataFrame(dates, columns=['date_days'])
+
+        holidays = ['2019-01-01', '2019-02-14', '2019-11-28', '2019-12-25']
+        exp_dates = [pd.to_datetime(date) for date in holidays]
+
+        exp_df = pd.DataFrame(exp_dates, columns=['date_days'])
+        actual_df = filter_by_holiday(test_df)
+        actual_df = actual_df.reset_index(drop=True)
+        pd.testing.assert_frame_equal(actual_df, exp_df)
+
+
+    def test_build_holiday_features(self):
+        holiday_col = ['holiday_comms']
+
+        # null case
+        exp_null_dict = {
+            0: [0.0],
+            1: [0.0]
+        }
+
+        actual_df = init_feature_df(self.raw_df)
+        actual_df = build_count_features(actual_df, 
+                                         self.call_df, 
+                                         self.sms_df, 
+                                         self.emm_df)
+        actual_df = build_holiday_features(actual_df, 
+                                           self.raw_df)  
+
+        self.assert_frame_equal_dict(actual_df, exp_null_dict, holiday_col)
+
+        # actual case
+        holiday_strs = ['2019-01-01', '2019-02-14', '2019-11-28', '2019-12-25']
+        holidays = [pd.to_datetime(date) for date in holiday_strs]
+        
+        pids = ['test_pid'] * 10
+        hashes = ['test_hash'] * 10
+        comm_dir = ['INCOMING', 'OUTGOING'] * 5
+        date_days = (holidays*2) + ([pd.to_datetime('2019-01-04')] * 2)
+        total_comms = [10]*10
+
+        cols = ['pid', 'combined_hash', 'comm_direction', 'date_days', 'total_comms']
+
+        data = np.transpose(np.stack([pids, hashes, comm_dir, date_days, total_comms], axis=0))
+        test_df = pd.DataFrame(data, columns=cols)
+        test_features = pd.DataFrame({'pid': pids[:1], 
+                                      'combined_hash': hashes[:1],
+                                      'total_comms': total_comms[:1]})
+        
+        exp_holiday_dict = {
+            0: [4/10]
+        }
+
+        actual_df = build_holiday_features(test_features, test_df)
+
+        self.assert_frame_equal_dict(actual_df, exp_holiday_dict, holiday_col)
+
+        
 
 if __name__ == '__main__':
     unittest.main()
