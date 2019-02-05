@@ -51,6 +51,8 @@ def comm_feature_extract(comm_df, ema_df):
     comm_features = build_maintenance_features(comm_features, call_df, sms_df)
     comm_features = build_holiday_features(comm_features, comm_df)
 
+    comm_features = comm_features.drop(['total_days', 'total_wks'], axis=1)
+
     return comm_features
 
 

@@ -20,6 +20,9 @@ if __name__ == '__main__':
     parser.add_argument('--age_gender_only', action='store_true', help='only use age/gender demographics')
     parser.add_argument('--loc_features', action='store_true', help='adds location features')
     parser.add_argument('--impute_missing', action='store_true', help='whether to impute NaNs and create additional features')
+    parser.add_argument('--impute_mean', action='store_true', help='whether to impute with mean')
+    parser.add_argument('--impute_median', action='store_true', help='whether to impute with median')
+
     args = parser.parse_args()
     
     # load data
@@ -32,14 +35,7 @@ if __name__ == '__main__':
     # feature extraction
     if args.comm_file is not None:
         full_features = comm_feature_extract(full_df, emm_df)
-
-    if args.emc_features:
-        emc_all = pickle.load(open('../data/emc_all.df', 'rb'))
-        hash_dict = pickle.load(open('../data/emc_to_canonical.dict', 'rb'))
-        pr_dict = pickle.load(open('../data/pr.dict', 'rb'))
-        full_features = build_emc_features(full_features, full_df, emc_all, hash_dict, pr_dict)
-        # emc_features tiles all combined_hashes, so drop all nans
-        #full_features = full_features.dropna()
+        full_features = build_nan_features(full_features)
 
     if args.demo_features:
         demo_df = pickle.load(open('../data/demographics.df', 'rb'))
@@ -49,7 +45,22 @@ if __name__ == '__main__':
         full_features = build_location_features(full_features, full_df)
 
     if args.impute_missing:
-        full_features = build_nan_features(full_features)
+        impute_val = 0
+        if args.impute_mean:
+            impute_val = 'mean'
+        if args.impute_median:
+            impute_val = 'median'
+        
+        full_features = build_nan_features(full_features, impute_val)
+
+    # do this last so no emc_nan_indicators leak
+    if args.emc_features:
+        emc_all = pickle.load(open('../data/emc_all.df', 'rb'))
+        hash_dict = pickle.load(open('../data/emc_to_canonical.dict', 'rb'))
+        pr_dict = pickle.load(open('../data/pr.dict', 'rb'))
+        full_features = build_emc_features(full_features, full_df, emc_all, hash_dict, pr_dict)
+        # emc_features tiles all combined_hashes, so drop all nans
+        #full_features = full_features.dropna()
 
 
     # split test and train data
