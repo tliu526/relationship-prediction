@@ -12,7 +12,7 @@ import pandas as pd
 from autosklearn.classification import AutoSklearnClassifier
 import autosklearn.metrics
 from autosklearn.regression import AutoSklearnRegressor
-from imblearn.over_sampling import SMOTE, RandomOverSampler
+from imblearn.over_sampling import SMOTENC, RandomOverSampler
 from sklearn.metrics import accuracy_score, mean_squared_error, f1_score
 from sklearn.model_selection import GroupKFold
 
@@ -26,6 +26,8 @@ ensemble_size = 50 # default ensemble size for AutoML
 ensemble_nbest = 50
 estimators = None # default estimators, selects all of them
 
+ensemble_mem_limit = 5120
+
 predict_targets = [
     'contact_type',
     'q1_want',
@@ -38,13 +40,16 @@ parser = argparse.ArgumentParser()
 parser.add_argument('in_name', help='input prefix, either top_5 or top_10')
 parser.add_argument('out_name', help='output model name')
 parser.add_argument('predict_target', help='target value to predict: contact_type, q1_want, q2_talk, q3_loan, q4_closeness')
-parser.add_argument('--resample', action='store_true', help='whether to resample classes using SMOTE')
-parser.add_argument('--rand_forest', action='store_true', help='run only baseline random forest')
+parser.add_argument('--resample', action='store_true', help='whether to resample classes')
+parser.add_argument('--smote', action='store_true', help='whether to resample classes using SMOTENC')
+parser.add_argument('--rand_forest', action='store_true', help='run only random forest')
+parser.add_argument('--svc', action='store_true', help='run only SVC')
 parser.add_argument('--test', action='store_true', help='whether to make a test run of the model training')
 parser.add_argument('--run_time', help='optionally specify run time')
 parser.add_argument('--task_time', help='optionally specify task time')
 parser.add_argument('--log_loss', action='store_true', help='use log loss for classification')
 parser.add_argument('--collapse_classes', action='store_true', help='optionally collapse relationship classes')
+parser.add_argument('--zimmerman_classes', action='store_true', help='use Zimmerman contact classes')
 parser.add_argument('--weighted_f1', action='store_true', help='optionally makes classification loss weighted F1')
 parser.add_argument('--emc_clf', action='store_true', help='optionally makes EMC prediction task into classification')
 
@@ -74,6 +79,13 @@ if args.collapse_classes:
         "sig_other": 3
     }
 
+if args.zimmerman_classes:
+    contact_dict =  {
+                "work": 0,
+                "social": 1,
+                "family": 2
+            }
+    
 replace_dict = {
     'contact_type': contact_dict
 }
@@ -102,11 +114,19 @@ if args.rand_forest:
     ensemble_size = 1
     ensemble_nbest = 1
 
+if args.svc:
+    estimators = ['libsvm_svc']
+    ensemble_size = 1
+    ensemble_nbest = 1
+    
 if args.resample:
     print("original shape %s" % Counter(train_y))
 
     sm = RandomOverSampler(random_state=rand_seed)
 
+    if args.smote:
+        sm = SMOTENC([0], random_state=rand_seed)
+    
     train_X, train_y = sm.fit_resample(train_X, train_y)
 
     print("resampled shape %s" % Counter(train_y))
@@ -134,12 +154,13 @@ if (args.predict_target == 'contact_type') or args.emc_clf:
         time_left_for_this_task=task_time,
         resampling_strategy=GroupKFold,
         resampling_strategy_arguments={
-            'folds': 5,
+            'folds': 10,
             'groups': np.array(pid_groups)
         },
         #initial_configurations_via_metalearning=0,
         ensemble_size=ensemble_size, 
         ensemble_nbest=ensemble_nbest,
+        ensemble_memory_limit=ensemble_mem_limit,
         include_estimators=estimators,
         seed=rand_seed
     )
