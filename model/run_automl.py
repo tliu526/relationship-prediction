@@ -155,7 +155,7 @@ if args.emc_clf:
     test_y = pd.cut(test_y, bins, labels=False)
 
 # classification task
-if (args.predict_target == 'contact_type') or args.emc_clf:
+if (args.predict_target in ['contact_type', 'tie_str_class']) or args.emc_clf:
     
     automl = AutoSklearnClassifier(
         per_run_time_limit=run_time,
@@ -204,7 +204,7 @@ else:
 automl.refit(train_X, train_y)
 predictions = automl.predict(test_X)
 
-if (args.predict_target == 'contact_type') or args.emc_clf:
+if (args.predict_target in ['contact_type', 'tie_str_class']) or args.emc_clf:
     if args.weighted_f1:
         print("Weighted F1:", f1_score(test_y, predictions, average='weighted'))
     else:
