@@ -34,7 +34,10 @@ predict_targets = [
     'q1_want',
     'q2_talk',
     'q3_loan',
-    'q4_closeness'
+    'q4_closeness',
+    'tie_str_score',
+    'tie_str_rank',
+    'tie_str_class'
 ]
 
 parser = argparse.ArgumentParser()

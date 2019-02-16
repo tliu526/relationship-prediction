@@ -22,6 +22,7 @@ if __name__ == '__main__':
     parser.add_argument('--impute_missing', action='store_true', help='whether to impute NaNs and create additional features')
     parser.add_argument('--impute_mean', action='store_true', help='whether to impute with mean')
     parser.add_argument('--impute_median', action='store_true', help='whether to impute with median')
+    parser.add_argument('--tie_str', action='store_true', help='whether to generate tie strength columns')
 
     args = parser.parse_args()
     
@@ -59,6 +60,9 @@ if __name__ == '__main__':
         hash_dict = pickle.load(open('../data/emc_to_canonical.dict', 'rb'))
         pr_dict = pickle.load(open('../data/pr.dict', 'rb'))
         full_features = build_emc_features(full_features, full_df, emc_all, hash_dict, pr_dict)
+
+        if args.tie_str:
+            full_features = build_tie_str_rank(full_features, full_df)
         # emc_features tiles all combined_hashes, so drop all nans
         #full_features = full_features.dropna()
 
