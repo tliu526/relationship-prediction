@@ -13,6 +13,7 @@ from autosklearn.classification import AutoSklearnClassifier
 import autosklearn.metrics
 from autosklearn.regression import AutoSklearnRegressor
 from imblearn.over_sampling import SMOTENC, RandomOverSampler
+from imblearn.under_sampling import RandomUnderSampler
 from sklearn.metrics import accuracy_score, mean_squared_error, f1_score
 from sklearn.model_selection import GroupKFold
 
@@ -42,6 +43,7 @@ parser.add_argument('out_name', help='output model name')
 parser.add_argument('predict_target', help='target value to predict: contact_type, q1_want, q2_talk, q3_loan, q4_closeness')
 parser.add_argument('--resample', action='store_true', help='whether to resample classes')
 parser.add_argument('--smote', action='store_true', help='whether to resample classes using SMOTENC')
+parser.add_argument('--rand_downsample', action='store_true', help='whether to resample classes by downsampling')
 parser.add_argument('--rand_forest', action='store_true', help='run only random forest')
 parser.add_argument('--svc', action='store_true', help='run only SVC')
 parser.add_argument('--test', action='store_true', help='whether to make a test run of the model training')
@@ -56,8 +58,8 @@ parser.add_argument('--emc_clf', action='store_true', help='optionally makes EMC
 args = parser.parse_args()
 
 # load data
-train_data = pickle.load(open("../data/{}_train_features.df".format(args.in_name), 'rb'))
-test_data = pickle.load(open("../data/{}_test_features.df".format(args.in_name), 'rb'))
+train_data = pickle.load(open("{}_train_features.df".format(args.in_name), 'rb'))
+test_data = pickle.load(open("{}_test_features.df".format(args.in_name), 'rb'))
 
 # data-preprocessing
 contact_dict = {
@@ -126,7 +128,10 @@ if args.resample:
 
     if args.smote:
         sm = SMOTENC([0], random_state=rand_seed)
-    
+
+    if args.rand_downsample:
+        sm = RandomUnderSampler(random_state=rand_seed)
+
     train_X, train_y = sm.fit_resample(train_X, train_y)
 
     print("resampled shape %s" % Counter(train_y))
