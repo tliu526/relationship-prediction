@@ -603,7 +603,7 @@ def build_nan_features(comm_features, fill_val=0):
     if fill_val == 'mean':
         print('filling mean')
         fill_val = comm_features.mean()
-    if fill_val == 'median':
+    elif fill_val == 'median':
         print('filling median')
         fill_val = comm_features.median()
     
@@ -729,6 +729,31 @@ locations = [
     "loc:other"
 ]
 
+def location_helper(group_df, col_prefix, divisor=None):
+    """
+    Helper function for processing variations of the location data.
+    """
+    group_visit = group_df[visit_reasons].sum()
+    
+    if divisor is None:
+        group_visit[visit_reasons] = group_visit[visit_reasons].divide(group_visit.sum(axis=1), axis='rows')
+    else:
+        group_visit[visit_reasons] = group_visit[visit_reasons].divide(divisor, axis='rows')
+    
+    group_visit = group_visit.add_prefix(col_prefix + "_")
+    group_visit = group_visit.reset_index()
+
+    group_loc = group_df[locations].sum()
+    if divisor is None:
+        group_loc[locations] = group_loc[locations].divide(group_loc.sum(axis=1), axis='rows')
+    else:
+        group_loc[locations] = group_loc[locations].divide(divisor, axis='rows')
+    
+    group_loc = group_loc.add_prefix(col_prefix + "_")
+    group_loc = group_loc.reset_index()
+
+    return group_loc.merge(group_visit, on=['pid', 'combined_hash'], how='outer')
+
 def build_location_features(comm_features, comm_df):
     """Adds semantic location features to the feature frame.
 
@@ -741,33 +766,58 @@ def build_location_features(comm_features, comm_df):
 
     call_df = comm_df.loc[comm_df['comm_type'] == 'PHONE']
     sms_df = comm_df.loc[comm_df['comm_type'] == 'SMS']
+    
+    out_call_df = call_df.loc[call_df['comm_direction'] == 'OUTGOING']
+    out_sms_df = sms_df.loc[sms_df['comm_direction'] == 'OUTGOING']
+    
+    # multiplying with duration allows aggregation by sum since locations are one-hot
+    call_dur = call_df.copy()
+    call_dur[locations] = call_dur[locations].multiply(call_dur['call_duration'], axis='rows')
+    call_dur[visit_reasons] = call_dur[visit_reasons].multiply(call_dur['call_duration'], axis='rows')
+    
+    total_calls = call_df.groupby(['pid', 'combined_hash'])['contact_type'].count()
+    total_sms = sms_df.groupby(['pid', 'combined_hash'])['contact_type'].count()
 
     # call features
-    call_visit = call_df.groupby(['pid', 'combined_hash'])[visit_reasons].sum()
-    call_visit[visit_reasons] = call_visit[visit_reasons].divide(call_visit.sum(axis=1), axis='rows')
-    call_visit = call_visit.add_prefix('call_')
-    call_visit = call_visit.reset_index()
+    all_call_loc = location_helper(call_df.groupby(['pid', 'combined_hash']), 'all_call')
+    out_call_loc = location_helper(out_call_df.groupby(['pid', 'combined_hash']), 'out_call', total_calls)
+    dur_call_loc = location_helper(call_dur.groupby(['pid', 'combined_hash']), 'dur_call', total_calls)
+    # call_visit = call_df.groupby(['pid', 'combined_hash'])[visit_reasons].sum()
+    # call_visit[visit_reasons] = call_visit[visit_reasons].divide(call_visit.sum(axis=1), axis='rows')
+    # call_visit = call_visit.add_prefix('call_')
+    # call_visit = call_visit.reset_index()
 
-    call_loc = call_df.groupby(['pid', 'combined_hash'])[locations].sum()
-    call_loc[locations] = call_loc[locations].divide(call_loc.sum(axis=1), axis='rows')
-    call_loc = call_loc.add_prefix('call_')
-    call_loc = call_loc.reset_index()
+    # call_loc = call_df.groupby(['pid', 'combined_hash'])[locations].sum()
+    # call_loc[locations] = call_loc[locations].divide(call_loc.sum(axis=1), axis='rows')
+    # call_loc = call_loc.add_prefix('call_')
+    # call_loc = call_loc.reset_index()
 
-    #sms features
-    sms_visit = sms_df.groupby(['pid', 'combined_hash'])[visit_reasons].sum()
-    sms_visit[visit_reasons] = sms_visit[visit_reasons].divide(sms_visit.sum(axis=1), axis='rows')
-    sms_visit = sms_visit.add_prefix('sms_')
-    sms_visit = sms_visit.reset_index()
+    # #sms features
+    all_sms_loc = location_helper(sms_df.groupby(['pid', 'combined_hash']), 'all_sms')
+    out_sms_loc = location_helper(out_sms_df.groupby(['pid', 'combined_hash']), 'out_sms', total_sms)
+    # sms_visit = sms_df.groupby(['pid', 'combined_hash'])[visit_reasons].sum()
+    # sms_visit[visit_reasons] = sms_visit[visit_reasons].divide(sms_visit.sum(axis=1), axis='rows')
+    # sms_visit = sms_visit.add_prefix('sms_')
+    # sms_visit = sms_visit.reset_index()
 
-    sms_loc = sms_df.groupby(['pid', 'combined_hash'])[locations].sum()
-    sms_loc[locations] = sms_loc[locations].divide(sms_loc.sum(axis=1), axis='rows')
-    sms_loc = sms_loc.add_prefix('sms_')
-    sms_loc = sms_loc.reset_index()
+    # sms_loc = sms_df.groupby(['pid', 'combined_hash'])[locations].sum()
+    # sms_loc[locations] = sms_loc[locations].divide(sms_loc.sum(axis=1), axis='rows')
+    # sms_loc = sms_loc.add_prefix('sms_')
+    # sms_loc = sms_loc.reset_index()
 
-    comm_features = comm_features.merge(call_visit, on=['pid', 'combined_hash'], how='outer')
-    comm_features = comm_features.merge(call_loc, on=['pid', 'combined_hash'], how='outer')
-    comm_features = comm_features.merge(sms_visit, on=['pid', 'combined_hash'], how='outer')
-    comm_features = comm_features.merge(sms_loc, on=['pid', 'combined_hash'], how='outer')
+    # comm_features = comm_features.merge(call_visit, on=['pid', 'combined_hash'], how='outer')
+    # comm_features = comm_features.merge(call_loc, on=['pid', 'combined_hash'], how='outer')
+    # comm_features = comm_features.merge(sms_visit, on=['pid', 'combined_hash'], how='outer')
+    # comm_features = comm_features.merge(sms_loc, on=['pid', 'combined_hash'], how='outer')
+
+    comm_features = comm_features.merge(all_call_loc, on=['pid', 'combined_hash'], how='outer')
+    comm_features = comm_features.merge(out_call_loc, on=['pid', 'combined_hash'], how='outer')
+    comm_features = comm_features.merge(dur_call_loc, on=['pid', 'combined_hash'], how='outer')
+
+    comm_features = comm_features.merge(all_sms_loc, on=['pid', 'combined_hash'], how='outer')
+    comm_features = comm_features.merge(out_sms_loc, on=['pid', 'combined_hash'], how='outer')
     
+
+
     return comm_features
 
