@@ -754,6 +754,7 @@ def location_helper(group_df, col_prefix, divisor=None):
 
     return group_loc.merge(group_visit, on=['pid', 'combined_hash'], how='outer')
 
+
 def build_location_features(comm_features, comm_df):
     """Adds semantic location features to the feature frame.
 
@@ -761,7 +762,6 @@ def build_location_features(comm_features, comm_df):
     populated.
 
     TODO refactor with call_df, sms_df as parameters?
-    TODO should we divide by total number of communications?
     """
 
     call_df = comm_df.loc[comm_df['comm_type'] == 'PHONE']
@@ -816,8 +816,29 @@ def build_location_features(comm_features, comm_df):
 
     comm_features = comm_features.merge(all_sms_loc, on=['pid', 'combined_hash'], how='outer')
     comm_features = comm_features.merge(out_sms_loc, on=['pid', 'combined_hash'], how='outer')
-    
-
 
     return comm_features
 
+
+def build_tie_str_rank(comm_features, comm_df, min_contacts=10):
+    """Adds tie_str_rank as a outcome column.
+
+    Operates on a comm_features DataFrame with emc_features already populated.
+    
+    Drops participants without the minimum number of contacts.
+    """
+
+    rank_bins = [0, 5, 19, np.inf]
+    emc_cols = ['q1_want', 'q2_talk', 'q3_loan', 'q4_closeness']
+
+    z_features = comm_features.copy()
+
+    contact_counts = z_features.groupby(['pid'])['combined_hash'].nunique()
+    drop_contacts = contact_counts.loc[(contact_counts < min_contacts)].index
+    z_features = z_features.loc[~z_features['pid'].isin(drop_contacts)]
+
+    z_features['tie_str_score'] = z_features[emc_cols].sum(axis=1)
+    z_features['tie_str_rank'] = z_features.groupby('pid', as_index=False)['tie_str_score'].rank("dense", ascending=False)
+    z_features['tie_str_class'] = pd.cut(z_features['tie_str_rank'], bins=rank_bins, right=True, labels=False)
+    
+    return z_features
