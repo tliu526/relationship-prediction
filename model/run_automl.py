@@ -44,19 +44,26 @@ parser = argparse.ArgumentParser()
 parser.add_argument('in_name', help='input prefix, either top_5 or top_10')
 parser.add_argument('out_name', help='output model name')
 parser.add_argument('predict_target', help='target value to predict: contact_type, q1_want, q2_talk, q3_loan, q4_closeness')
+
 parser.add_argument('--resample', action='store_true', help='whether to resample classes')
 parser.add_argument('--smote', action='store_true', help='whether to resample classes using SMOTENC')
 parser.add_argument('--rand_downsample', action='store_true', help='whether to resample classes by downsampling')
+
 parser.add_argument('--rand_forest', action='store_true', help='run only random forest')
 parser.add_argument('--svc', action='store_true', help='run only SVC')
+
 parser.add_argument('--test', action='store_true', help='whether to make a test run of the model training')
 parser.add_argument('--run_time', help='optionally specify run time')
 parser.add_argument('--task_time', help='optionally specify task time')
+
 parser.add_argument('--log_loss', action='store_true', help='use log loss for classification')
+parser.add_argument('--weighted_f1', action='store_true', help='optionally makes classification loss weighted F1')
+
 parser.add_argument('--collapse_classes', action='store_true', help='optionally collapse relationship classes')
 parser.add_argument('--zimmerman_classes', action='store_true', help='use Zimmerman contact classes')
-parser.add_argument('--weighted_f1', action='store_true', help='optionally makes classification loss weighted F1')
 parser.add_argument('--emc_clf', action='store_true', help='optionally makes EMC prediction task into classification')
+parser.add_argument('--tie_str_verystrong', action='store_true', help='optionally makes tie strength into 2-class \"very strong\" classification')
+parser.add_argument('--tie_str_medstrong', action='store_true', help='optionally makes tie strength into 2-class \"med strong\" classification')
 
 args = parser.parse_args()
 
@@ -90,10 +97,28 @@ if args.zimmerman_classes:
                 "social": 1,
                 "family": 2
             }
-    
+
 replace_dict = {
     'contact_type': contact_dict
 }
+
+# combines weak and med ties
+if args.tie_str_verystrong:
+    map_dict = {
+        0: 0,
+        1: 1,
+        2: 1
+    }
+    train_data['tie_str_class'] = train_data['tie_str_class'].map(map_dict)
+
+# combines strong and med ties
+if args.tie_str_medstrong:
+    map_dict = {
+        0: 0,
+        1: 0,
+        2: 1
+    }
+    train_data['tie_str_class'] = train_data['tie_str_class'].map(map_dict)
 
 train_data = train_data.replace(replace_dict)
 test_data = test_data.replace(replace_dict)
@@ -113,6 +138,7 @@ if args.test:
     # set some trivially small training time to test script
     run_time = 10
     task_time = 15
+    print("Class counts %s" % Counter(train_y))
 
 if args.rand_forest:
     estimators = ['random_forest']
