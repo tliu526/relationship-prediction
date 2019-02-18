@@ -2,9 +2,11 @@
 
 """
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import sklearn.metrics as sk_metrics
+from sklearn.model_selection import BaseCrossValidator
 
 
 def build_cv_groups(pids):
@@ -50,6 +52,10 @@ def print_clf_metrics(test_y, predictions, contact_types):
     metrics_df = pd.DataFrame(metrics, index=avgs, columns=['precision', 'recall', 'F1'])
     display(metrics_df)
     
+    print_confusion_matrix(test_y, predictions, contact_types)
+
+
+def print_confusion_matrix(test_y, predictions, contact_types):
     confusion_mat = sk_metrics.confusion_matrix(test_y, predictions)
     confuse_df = pd.DataFrame(confusion_mat, index=contact_types, columns=["p_" + x for x in contact_types])
     display(confuse_df)
@@ -65,3 +71,54 @@ def get_best_val_score(model):
     end_idx = stats.index("\n", start_idx)
 
     return float(stats[start_idx:end_idx])
+
+        
+def annotate_bar(ax):
+    for i, bar in enumerate(ax.patches):
+        height = bar.get_height()
+        sign = np.sign(height)
+        text = format(height, ".3f")
+        #height*0.95
+        plt.text((bar.get_x() + bar.get_width()/2), 0.01, text, ha='center')        
+
+
+def plot_results(rf_test_scores, 
+                 automl_test_scores, 
+                 baseline_label, 
+                 x_labels, 
+                 y_label, 
+                 title, 
+                 majority_score=None,
+                 automl_stderrs=None,
+                 baseline_stderrs=None):
+    x = np.arange(0,len(automl_test_scores))
+    width = 0.35
+    plt.rcParams["figure.figsize"] = [12,6]
+    ax = plt.bar(x-(width/2), rf_test_scores, width, yerr=baseline_stderrs, label=baseline_label)
+    annotate_bar(ax)
+    ax = plt.bar(x+(width/2), automl_test_scores, width, yerr=automl_stderrs, label='auto-sklearn')
+    annotate_bar(ax)
+
+    if majority_score is not None:    
+        plt.axhline(y=majority_score, color='black', ls='dotted', label='majority')
+    plt.yticks(np.arange(0, 0.8, 0.05))
+    plt.ylabel(y_label)
+    plt.xlabel("Features")
+    plt.xticks(x, x_labels)
+    plt.title(title)
+    plt.legend(loc='upper right')
+    plt.show()
+            
+    
+def print_ensemble(ensemble, latex=False):
+    delim = ","
+    end = ""
+    for weight, pipeline in ensemble:
+        if latex:
+            print("{} & {} \\\\".format(weight, 
+                                        pipeline.configuration['classifier:__choice__']))
+        else:
+            print("Weight: {}, classifier: {}".format(weight, 
+                                                      pipeline.configuration['classifier:__choice__']))
+            
+            
