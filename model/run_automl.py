@@ -65,6 +65,8 @@ parser.add_argument('--emc_clf', action='store_true', help='optionally makes EMC
 parser.add_argument('--tie_str_verystrong', action='store_true', help='optionally makes tie strength into 2-class \"very strong\" classification')
 parser.add_argument('--tie_str_medstrong', action='store_true', help='optionally makes tie strength into 2-class \"med strong\" classification')
 
+parser.add_argument('--no_nan_indicators', action='store_true', help='optionally removes nan_indicator columns')
+
 args = parser.parse_args()
 
 # load data
@@ -122,6 +124,12 @@ if args.tie_str_medstrong:
 
 train_data = train_data.replace(replace_dict)
 test_data = test_data.replace(replace_dict)
+
+if args.no_nan_indicators:
+    print(train_data.shape)
+    train_data = train_data.loc[:, ~train_data.columns.str.endswith('_nan_indicator')]
+    print(train_data.shape)
+    test_data = test_data.loc[:, ~test_data.columns.str.endswith('_nan_indicator')]
 
 train_y = train_data[args.predict_target]
 train_X = train_data.drop(['combined_hash'] + predict_targets, axis=1, errors='ignore')
