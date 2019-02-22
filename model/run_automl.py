@@ -231,11 +231,11 @@ else:
         seed=rand_seed
     )
 
-    automl.fit(train_X, train_y)
+    automl.fit(train_X.copy(), train_y.copy())
 
 # refit() necessary when using cross-validation, see documentation:
 # https://automl.github.io/auto-sklearn/stable/api.html#autosklearn.classification.AutoSklearnClassifier.refit
-automl.refit(train_X, train_y)
+automl.refit(train_X.copy(), train_y.copy())
 predictions = automl.predict(test_X)
 
 if (args.predict_target in ['contact_type', 'tie_str_class']) or args.emc_clf:
