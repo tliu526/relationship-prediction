@@ -587,7 +587,7 @@ def build_holiday_features(comm_features, comm_df):
     return comm_features
 
 
-def build_nan_features(comm_features, fill_val=0):
+def build_nan_features(comm_features, fill_val=0, dedup_nan=False):
     """Adds additional feature columns for nans and fills NaNs with fill_val.
 
     features created:
@@ -608,6 +608,16 @@ def build_nan_features(comm_features, fill_val=0):
         fill_val = comm_features.median()
     
     comm_features = comm_features.fillna(fill_val)
+
+    if dedup_nan:
+        ind_cols = [x for x in comm_features.columns if 'indicator' in x]
+        ind_df = comm_features[ind_cols]
+
+        keep_df = ind_df.T.drop_duplicates().T
+        keep_cols = list(keep_df.columns.values)
+        drop_ind_cols = list(set(ind_cols) - set(keep_cols))
+
+        comm_features = comm_features.drop(drop_ind_cols, axis='columns')
 
     return comm_features
     
@@ -810,12 +820,14 @@ def build_location_features(comm_features, comm_df):
     # comm_features = comm_features.merge(sms_visit, on=['pid', 'combined_hash'], how='outer')
     # comm_features = comm_features.merge(sms_loc, on=['pid', 'combined_hash'], how='outer')
 
+
+    # commented these features out to test effect of additional location features
     comm_features = comm_features.merge(all_call_loc, on=['pid', 'combined_hash'], how='outer')
-    comm_features = comm_features.merge(out_call_loc, on=['pid', 'combined_hash'], how='outer')
-    comm_features = comm_features.merge(dur_call_loc, on=['pid', 'combined_hash'], how='outer')
+    #comm_features = comm_features.merge(out_call_loc, on=['pid', 'combined_hash'], how='outer')
+    #comm_features = comm_features.merge(dur_call_loc, on=['pid', 'combined_hash'], how='outer')
 
     comm_features = comm_features.merge(all_sms_loc, on=['pid', 'combined_hash'], how='outer')
-    comm_features = comm_features.merge(out_sms_loc, on=['pid', 'combined_hash'], how='outer')
+    #comm_features = comm_features.merge(out_sms_loc, on=['pid', 'combined_hash'], how='outer')
 
     return comm_features
 

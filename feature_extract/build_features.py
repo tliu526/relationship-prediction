@@ -23,6 +23,7 @@ if __name__ == '__main__':
     parser.add_argument('--impute_mean', action='store_true', help='whether to impute with mean')
     parser.add_argument('--impute_median', action='store_true', help='whether to impute with median')
     parser.add_argument('--tie_str', action='store_true', help='whether to generate tie strength columns')
+    parser.add_argument('--dedup_nan', action='store_true', help='whether to dedup nan indicators')
 
     args = parser.parse_args()
     
@@ -52,7 +53,9 @@ if __name__ == '__main__':
         if args.impute_median:
             impute_val = 'median'
         
-        full_features = build_nan_features(full_features, impute_val)
+        full_features = build_nan_features(full_features, 
+                                           fill_val=impute_val,
+                                           dedup_nan=args.dedup_nan)
 
     # do this last so no emc_nan_indicators leak
     if args.emc_features:
