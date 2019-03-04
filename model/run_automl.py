@@ -58,6 +58,7 @@ parser.add_argument('--task_time', help='optionally specify task time')
 
 parser.add_argument('--log_loss', action='store_true', help='use log loss for classification')
 parser.add_argument('--weighted_f1', action='store_true', help='optionally makes classification loss weighted F1')
+parser.add_argument('--macro_f1', action='store_true', help='optionally makes classification loss macro F1')
 
 parser.add_argument('--collapse_classes', action='store_true', help='optionally collapse relationship classes')
 parser.add_argument('--zimmerman_classes', action='store_true', help='use Zimmerman contact classes')
@@ -212,6 +213,9 @@ if (args.predict_target in ['contact_type', 'tie_str_class']) or args.emc_clf:
         clf_metric = autosklearn.metrics.log_loss
     if args.weighted_f1:
         clf_metric = autosklearn.metrics.f1_weighted
+    if args.macro_f1:
+        clf_metric = autosklearn.metrics.f1_macro
+
 
     automl.fit(train_X, train_y, metric=clf_metric)
 
@@ -249,4 +253,5 @@ else:
 # model saving: https://github.com/automl/auto-sklearn/issues/5
 pickle.dump(automl, open("{}.automl".format(args.out_name), "wb"))
 pickle.dump(predictions, open("{}.predict".format(args.out_name), "wb"))
+pickle.dump(automl.predict_proba, open("{}.predict_prob".format(args.out_name), "wb"))
 print(automl.sprint_statistics())
