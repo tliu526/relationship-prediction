@@ -15,9 +15,12 @@ from autosklearn.regression import AutoSklearnRegressor
 from imblearn.over_sampling import SMOTENC, RandomOverSampler
 from imblearn.under_sampling import RandomUnderSampler
 from sklearn.metrics import accuracy_score, mean_squared_error, f1_score
-from sklearn.model_selection import GroupKFold
+import sklearn.model_selection as sk_model_select
 
 from model_util import build_cv_groups
+
+# horrible hack to get around auto-sklearn limitations, shadowing names
+from GroupKFoldSample import GroupKFold
 
 rand_seed = 2
 run_time = 360 # wallclock time limit for a given model, in sec
@@ -45,6 +48,7 @@ parser.add_argument('in_name', help='input prefix, either top_5 or top_10')
 parser.add_argument('out_name', help='output model name')
 parser.add_argument('predict_target', help='target value to predict: contact_type, q1_want, q2_talk, q3_loan, q4_closeness')
 
+parser.add_argument('--group_res', action='store_true', help='whether to run GroupKFold resampling')
 parser.add_argument('--resample', action='store_true', help='whether to resample classes')
 parser.add_argument('--smote', action='store_true', help='whether to resample classes using SMOTENC')
 parser.add_argument('--rand_downsample', action='store_true', help='whether to resample classes by downsampling')
@@ -65,8 +69,6 @@ parser.add_argument('--zimmerman_classes', action='store_true', help='use Zimmer
 parser.add_argument('--emc_clf', action='store_true', help='optionally makes EMC prediction task into classification')
 parser.add_argument('--tie_str_verystrong', action='store_true', help='optionally makes tie strength into 2-class \"very strong\" classification')
 parser.add_argument('--tie_str_medstrong', action='store_true', help='optionally makes tie strength into 2-class \"med strong\" classification')
-
-parser.add_argument('--no_nan_indicators', action='store_true', help='optionally removes nan_indicator columns')
 
 args = parser.parse_args()
 
@@ -126,12 +128,6 @@ if args.tie_str_medstrong:
 train_data = train_data.replace(replace_dict)
 test_data = test_data.replace(replace_dict)
 
-if args.no_nan_indicators:
-    print(train_data.shape)
-    train_data = train_data.loc[:, ~train_data.columns.str.endswith('_nan_indicator')]
-    print(train_data.shape)
-    test_data = test_data.loc[:, ~test_data.columns.str.endswith('_nan_indicator')]
-
 train_y = train_data[args.predict_target]
 train_X = train_data.drop(['combined_hash'] + predict_targets, axis=1, errors='ignore')
 test_y = test_data[args.predict_target]
@@ -182,6 +178,15 @@ else:
     pid_groups = build_cv_groups(train_X['pid'])
     train_X = train_X.drop(['pid'], axis=1)
 
+cv_method = sk_model_select.GroupKFold
+cv_params = {
+            'folds': 5,
+            'groups': np.array(pid_groups)
+            }
+
+if args.group_res:
+    cv_method = GroupKFold
+    cv_params['random_state'] = rand_seed
 # rebin for classification, 3 classes per previous literature
 if args.emc_clf:
     _, bins = pd.qcut(train_y.append(test_y), 3, labels=False, retbins=True)
@@ -195,11 +200,8 @@ if (args.predict_target in ['contact_type', 'tie_str_class']) or args.emc_clf:
     automl = AutoSklearnClassifier(
         per_run_time_limit=run_time,
         time_left_for_this_task=task_time,
-        resampling_strategy=GroupKFold,
-        resampling_strategy_arguments={
-            'folds': 10,
-            'groups': np.array(pid_groups)
-        },
+        resampling_strategy=cv_method,
+        resampling_strategy_arguments=cv_params,
         #initial_configurations_via_metalearning=0,
         ensemble_size=ensemble_size, 
         ensemble_nbest=ensemble_nbest,
@@ -223,11 +225,8 @@ else:
     automl = AutoSklearnRegressor(
         per_run_time_limit=run_time,
         time_left_for_this_task=task_time,
-        resampling_strategy=GroupKFold,
-        resampling_strategy_arguments={
-            'folds': 5,
-            'groups': np.array(pid_groups)
-        },
+        resampling_strategy=cv_method,
+        resampling_strategy_arguments=cv_params,
         #initial_configurations_via_metalearning=0,
         ensemble_size=ensemble_size, 
         ensemble_nbest=ensemble_nbest,

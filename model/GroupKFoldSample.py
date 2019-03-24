@@ -16,12 +16,12 @@ import sklearn
 from sklearn.ensemble import RandomForestClassifier, ExtraTreesClassifier
 from sklearn.preprocessing import normalize
 from sklearn.metrics import f1_score, accuracy_score
-from sklearn.model_selection import GroupKFold
+import sklearn.model_selection as sk_model_select
 from sklearn.utils.validation import indexable
 
 from model_util import build_cv_groups
 
-class GroupKFoldSample(GroupKFold):
+class GroupKFold(sk_model_select.GroupKFold):
     def __init__(self, n_splits, random_state):
         super().__init__(n_splits)
         self.random_state = random_state
@@ -34,12 +34,16 @@ class GroupKFoldSample(GroupKFold):
         for train_idx, test_idx in super().split(X, y=y, groups=groups):
             #X, y, groups = indexable(X, y, groups)
             fold_train_X = X[train_idx]        
-            fold_train_y = y.values[train_idx]        
+            if hasattr(y, "values"):
+                fold_train_y = y.values[train_idx]        
+            else:
+                fold_train_y = y[train_idx]          
             # print(X.shape)
             # print(y.shape)
             # print(fold_train_X.shape)
             # print(fold_train_y.shape)
 
+            # Need to remap fold indices back to the overall indices
             idx_dict = {fold_idx : train_idx[fold_idx] for fold_idx in range(len(fold_train_y))}
 
             # print(Counter(y.values[train_idx]))
@@ -105,7 +109,7 @@ if __name__ == '__main__':
 
     groups = build_cv_groups(top5_all_q1['pid'])
 
-    group_kfold_res = GroupKFoldSample(n_splits=5, random_state=2)
+    group_kfold_res = GroupKFold(n_splits=5, random_state=2)
 
     cv_scores = []
 
