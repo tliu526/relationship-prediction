@@ -16,6 +16,141 @@
   - shell scripts: need a better way to track the entire data transformation pipeline, up to training
     - MakeFile?
 
+## 2019-03-24
+
+### Notes
+
+- implemented resampling for GroupKFold, requires a bad hack for auto-sklearn to accept it
+
+```
+/home/tliu526/miniconda3/envs/shap/lib/python3.7/site-packages/sklearn/metrics/classification.py:1143: UndefinedMetricWarning: F-score is ill-defined and being set to 0.0 in labels with no predicted samples.
+  'precision', 'predicted', average, warn_for)
+Weighted F1: 0.6188711479072213
+auto-sklearn results:
+  Dataset name: df137288622a41ec2227d454e9e5215e
+  Metric: f1_weighted
+  Best validation score: 0.639061
+  Number of target algorithm runs: 26
+  Number of successful target algorithm runs: 23
+  Number of crashed target algorithm runs: 0
+  Number of target algorithms that exceeded the time limit: 2
+  Number of target algorithms that exceeded the memory limit: 1
+```
+
+``` No upsampling
+
+Accuracy: 0.6571428571428571
+auto-sklearn results:
+  Dataset name: df137288622a41ec2227d454e9e5215e
+  Metric: f1_macro
+  Best validation score: 0.507865
+  Number of target algorithm runs: 29
+  Number of successful target algorithm runs: 26
+  Number of crashed target algorithm runs: 0
+  Number of target algorithms that exceeded the time limit: 3
+  Number of target algorithms that exceeded the memory limit: 0
+```
+
+``` Random upsampling, round 1:  
+
+Accuracy: 0.6571428571428571
+auto-sklearn results:
+  Dataset name: df137288622a41ec2227d454e9e5215e
+  Metric: f1_macro
+  Best validation score: 0.491449
+  Number of target algorithm runs: 22
+  Number of successful target algorithm runs: 18
+  Number of crashed target algorithm runs: 0
+  Number of target algorithms that exceeded the time limit: 3
+  Number of target algorithms that exceeded the memory limit: 1
+
+
+```
+
+## 2019-03-21
+
+### Notes
+
+- we can upsample within the fold, requires a custom `BaseCrossValidator`
+- First quartile has significantly higher performance for within sample prediction on six class classification task:
+  - ~46% accuracy vs ~37%
+  - need to ensure it is not because of label imbalance, or because of feature absence/presence
+
+## 2019-03-15 
+
+### Sharath Meeting Notes
+
+- dedicated related work: good to have a table of previous work and the permutations
+- two big research questions
+  - how do population heterogeneity impact our predictions?
+  - how well do we replicate other studies?
+
+#### Q1 
+
+- build model on different subgroups:
+  - cross validation results within groups
+  - cross validation results across groups (generalizability)
+  - can also look at AutoML vs "best algorithm" for each subgroup: gets to the reproducibility
+  - quartile bins to start
+- then: why do these differences exist?
+  - qualitative analysis (correlations)
+    - try the same bins as prediction
+  - feature importance
+
+#### Q2
+
+- just replicate the Min et al experiments
+
+
+
+## 2019-03-14
+
+### Paper story
+
+1. motivation: 
+   1. many personal sensing studies focus on a single homogeneous population (eg students)
+   2. this negatively impacts the generalizability of models trained on these populations
+      1. Age, gender are easily accessible demographic information that can shape predictive output as well
+   3. there is also a dichotomy between an individual's closest contacts vs everyone they've talked in terms of communication pattersn (duh): contact labels in this case may not matter as much
+      1. TODO check the tie strength scores as a function of **top 5** prediction 
+      2. tie strength as a proxy of top 5 prediction?
+2. Our Contributions
+   1. we consider new feature modalities in a relationship prediction task: demographics, semantic location
+   2. we also consider heterogeneous populations 
+3. Methods
+   1. emphasize equations
+   2. emphasize the methodology of deriving the semantic location features
+      1. TODO email Sohrab
+   3. ~~employ block regularization as a novel technique?~~ (not that novel)
+4. Results
+      
+5. 
+
+
+### Meeting with Lyle
+
+- Mathiness question: how much should we contrive this?
+- 
+
+## 2019-03-11
+
+### LifeSense meeting notes
+
+- draw subpopulations from different age categories, try running feature importance
+- bring up: dichotomy between RF feature importance and autoML test set feature importance
+- we want to make the point that heterogeneou populations give vastly different results, and thus studies of students are not representative of the wider population
+- fitting models on subpopulations yield poor generalizations to the overall population (duh?)
+- also dichotomy between top 5 and all contacts
+
+## 2019-03-10
+
+### UbiComp Format Notes
+
+- dedicated Related Work section: about 1 page
+- fairly mathy: algorithm descriptions and equations throughout
+- relatively short discussion/conclusion, less than 1 page
+- aim for 8000-10000 words in length (about 12 pages of text)
+
 ## 2019-03-07
 
 ### Paper discussion
