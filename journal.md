@@ -16,6 +16,69 @@
   - shell scripts: need a better way to track the entire data transformation pipeline, up to training
     - MakeFile?
 
+## 2019-03-25
+
+### Notes
+
+- Do we want to perform an ANOVA analysis of our age subpopulations?
+- out of sample performance for models trained on the youngest demographic does the worst
+    - will have to investigate whether this is because the youngest demographic is easiest to predict, or whether models trained with the youngest quartile generalizes poorly
+- perhaps worth re-running the "all" models with longer training times to have roughly equal number of models considered vs baseline
+
+### Paper Microstructure
+
+#### Introduction
+
+- Why do we care about estimating relationships?
+  - social support
+  - mood disorders
+- Roles/advantages of passive-sensing
+  - allow researchers to collect data at scale
+  - limitations in generalizability -> gaps
+- Gaps in prior work
+  - small sample sizes
+  - non-representative populations (students are not people)
+- Our contributions
+  - contextualization of communication data with demographics and semantic location
+  - replication of a previous study in the relationship prediction space (do we even need this now?)
+  - analysis of generalizability of models trained on subpopulations to others
+  - interpretation and correlation analysis of communication patterns across different subpopulations
+  - (use of AutoML to remove engineering bias)
+
+#### Methods
+
+- Data collection
+- Feature extraction
+- Cross validation methodology
+  - make sure that we cross validate over participants
+- Feature importance analysis
+  - Random forest feature importance
+  - SHAP
+
+#### Results
+
+- whole population results
+  - can note here why we switched from 6-class to 4-class
+  - can also note the vast difference in performance when compared to Min et al (refer to appendix for replication results)
+  - note the largest jump in performance came from introducing age and gender
+  - hypothesis: people of different ages communicate differently with different types of contacts <- this feels like an important point, to be emphasized more strongly
+      - ANOVA analysis could go here for the different quartiles and a communication feature, such as call tendency
+- correlational analysis of communication features, especially across age, and feature importance
+- subpopulation prediction task and correlational analysis
+  - the decrease in performance of models trained on the youngest quartile (should be) illustrative of a) differences in communication patterns across ages and b) why generalizability is a concern in small n, heterogeneous datasets
+  - feature importance of both SHAP and random forest
+
+#### Discussion
+- how the gap was filled
+  - contextualization of communication patterns in terms of age as a key demographic 
+  - demonstration of the limits of generalizability in personal sensing models, and an analysis of why these differences in age groups occur
+- our limitations
+  - still relatively small $n$ and have a biased sample population of our own, skewed towards females significantly
+  - general limitations with passive sensing data: missing, faulty sensors
+- future work
+  - handling disparate data, either through block regularization or multi-task learning
+
+
 ## 2019-03-24
 
 ### Notes
