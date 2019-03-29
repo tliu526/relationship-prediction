@@ -48,3 +48,17 @@ python run_automl.py ../data/subpop_features/top5_all_q2 subpop_results/q2_all_r
 python run_automl.py ../data/subpop_features/top5_all_q3 subpop_results/q3_all_rf contact_type --weighted_f1 --collapse_classes --run_time 1440 --task_time 21600 --group_res --rand_forest > subpop_logs/q3_all_rf.out
 ## Q4
 python run_automl.py ../data/subpop_features/top5_all_q4 subpop_results/q4_all_rf contact_type --weighted_f1 --collapse_classes --run_time 1440 --task_time 21600 --group_res --rand_forest > subpop_logs/q4_all_rf.out
+
+# allQ runs
+
+# base RF
+python run_automl.py ../data/subpop_features/top5_base_allq subpop_results/allq_base_rf contact_type --weighted_f1 --collapse_classes --run_time 1440 --task_time 21600 --group_res --rand_forest > subpop_logs/allq_base_rf.out
+
+# all RF
+python run_automl.py ../data/subpop_features/top5_all_allq subpop_results/allq_all_rf contact_type --weighted_f1 --collapse_classes --run_time 1440 --task_time 21600 --group_res --rand_forest > subpop_logs/allq_all_rf.out
+
+# base AutoML
+python run_automl.py ../data/subpop_features/top5_base_allq subpop_results/allq_base contact_type --weighted_f1 --collapse_classes --run_time 1440 --task_time 21600 --group_res > subpop_logs/allq_base.out
+
+# all AutoML
+python run_automl.py ../data/subpop_features/top5_all_allq subpop_results/allq_all contact_type --weighted_f1 --collapse_classes --run_time 1440 --task_time 21600 --group_res > subpop_logs/allq_all.out
