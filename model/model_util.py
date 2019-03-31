@@ -9,6 +9,42 @@ import sklearn.metrics as sk_metrics
 from sklearn.model_selection import BaseCrossValidator
 
 
+def build_allq_features(feature_df, n=12, seed=2):
+    """Samples n participants in each quartile from feature_df.
+
+    Parameters
+    ----------
+    feature_df : pandas.DataFrame
+        The input feature dataframe, must include 'ego_age_q' column.
+    n : int
+        The number of participants to sample from each quartile, defaults to 12.
+    seed : int
+        The random seed for numpy choice selection
+    Returns
+    -------
+    (train_df, test_df) : tuple
+        A tuple of the train and test feature splits.
+    """
+
+    q_pids = {}
+    for i in range(1,5):
+        cur_q = 'q' + str(i)
+        q_pids[cur_q] = feature_df.loc[feature_df['ego_age_q'] == ('age_' + cur_q)]['pid'].unique()
+
+    selected_pids = []
+    for q, pids in q_pids.items():
+        print(seed)
+        np.random.seed(seed)
+        selected_pids.extend(np.random.choice(pids, n, replace=False))
+    print(len(selected_pids))
+    print(sorted(selected_pids))
+    
+    train_df = feature_df.loc[feature_df['pid'].isin(selected_pids)]
+    print(train_df.shape)
+    test_df = feature_df.loc[~feature_df['pid'].isin(selected_pids)]
+    print(test_df.shape)
+
+    return train_df, test_df
 def build_cv_groups(pids):
     """Builds cross-validation groups for GroupKFold model selection class.
 
@@ -122,3 +158,13 @@ def print_ensemble(ensemble, latex=False):
                                                       pipeline.configuration['classifier:__choice__']))
             
             
+if __name__ == '__main__':
+    import pickle
+    feature_dir = '/home/tliu/relationship-prediction/data/subpop_features/'
+    features = 'base'
+    df = pickle.load(open(feature_dir + "top5_{}_features.df".format(features), "rb"))
+    seed = 3
+    train_df, test_df = build_allq_features(df, seed=3)
+    print(train_df['ego_age_q'].value_counts())
+    pickle.dump(train_df, open(feature_dir + "top5_{}_allq_s{}_train_features.df".format(features, seed), "wb"), -1)
+    pickle.dump(test_df, open(feature_dir + "top5_{}_allq_s{}_test_features.df".format(features, seed), "wb"), -1)
