@@ -160,10 +160,17 @@ def print_ensemble(ensemble, latex=False):
             
 if __name__ == '__main__':
     import pickle
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('feature', choices=['base', 'all'], help='whether to sample from baseline features or all features')
+    parser.add_argument('seed', help='random seed for sampling reproducability')
+    args = parser.parse_args()
+
     feature_dir = '/home/tliu/relationship-prediction/data/subpop_features/'
-    features = 'base'
+    features = args.feature
+    seed = args.seed
     df = pickle.load(open(feature_dir + "top5_{}_features.df".format(features), "rb"))
-    seed = 3
     train_df, test_df = build_allq_features(df, seed=3)
     print(train_df['ego_age_q'].value_counts())
     pickle.dump(train_df, open(feature_dir + "top5_{}_allq_s{}_train_features.df".format(features, seed), "wb"), -1)
