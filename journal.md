@@ -8,7 +8,6 @@
   - document as you go
   - clean jupyter notebook as final outputs
   - write data processing scripts with argparse
-  
   - unit test with small slices of data -> synthetic is best
 
 - What didn't work:
@@ -16,6 +15,87 @@
   - shell scripts: need a better way to track the entire data transformation pipeline, up to training
     - MakeFile?
 
+## 2019-04-03
+
+### Meeting Notes
+
+- ML is a thing that the field is excited about, and yet is just overfitting
+- an awesome paper: show generalization is horrible across all the popular datasets
+  - depression scores
+- good causality in medicine: we're trying to correct things (standard epi)
+- don't use words like "First," "unexeplored," etc: doesn't respect the infinite chain of referencing previous work
+- look to CCC for each paragraph
+- each last sentence needs to say what the paragraph mean
+
+## 2019-04-02
+
+### Meeting Notes
+
+### Notes
+
+- when training on macro F1, the allq models are roughly the best in all categories, for macro F1
+- how to make this argument more convincing?
+
+## 2019-03-31
+
+### Notes
+
+- the seeded allq runs don't appear to be doing much better than the non-q1 individually trained quartiles
+- ANOVA tables for call tendency and night-time communications
+
+### Related work
+
+#### CommSense
+
+- course-grained communication location
+- manually constructed three-stage classifier with decision trees and rules-based logic -> not generalizable
+- nested labels 
+- 106 users, 9899 contacts but only 68529 phone calls and 20000 messages
+
+## 2019-03-30
+
+### Notes
+
+- pickle.dump with care...
+- we could try a stratified group k-fold where the training set is sampled to have equal proportion from each quartile while every participant is used in the training set at some point
+
+## 2019-03-29
+
+### Notes
+
+- "honest" evaluation of having all the data:
+  - generate a training set sampling from all four quartiles of roughly the same size as the quartiles, then split out test performances on the remaining samples
+  - can sample multiple times to get a confidence interval
+  - sample 12 participants from each quartile, giving us a training set of 48 total
+
+## 2019-03-27
+
+### Notes
+
+- potential paper: good real-world practice of machine learning
+  - writing meta-paper on machine learning: how not to cheat yourself
+  - leakage: 
+    - no cross validation
+    - bad cross validation
+    - feature selection
+    - by PhD student
+
+- convince clinical practitioners: JAMA
+- Getting into NeurIPS: write with the same language as other NeurIPs papers but in a space where they aren't applications before
+  - "mathematical masturbation"
+
+- two things to look at: estimate the running variable, estimate the outcomes
+## 2019-03-26
+
+### Notes
+
+- Concern: run this analysis against macro F1 estimators, to ensure it isn't a balance issue
+
+### Tomorrow's meeting
+
+- go over paper microstructure and results logic steps
+- `call tendency` and `reg_sms` as target continuous variables
+  - significant differences in Q1, Q4
 ## 2019-03-25
 
 ### Notes
@@ -77,7 +157,6 @@
   - general limitations with passive sensing data: missing, faulty sensors
 - future work
   - handling disparate data, either through block regularization or multi-task learning
-
 
 ## 2019-03-24
 
