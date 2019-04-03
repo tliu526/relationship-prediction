@@ -20,6 +20,7 @@ def build_allq_features(feature_df, n=12, seed=2):
         The number of participants to sample from each quartile, defaults to 12.
     seed : int
         The random seed for numpy choice selection
+
     Returns
     -------
     (train_df, test_df) : tuple
@@ -33,7 +34,6 @@ def build_allq_features(feature_df, n=12, seed=2):
 
     selected_pids = []
     for q, pids in q_pids.items():
-        print(seed)
         np.random.seed(seed)
         selected_pids.extend(np.random.choice(pids, n, replace=False))
     print(len(selected_pids))
@@ -171,7 +171,8 @@ if __name__ == '__main__':
     features = args.feature
     seed = args.seed
     df = pickle.load(open(feature_dir + "top5_{}_features.df".format(features), "rb"))
-    train_df, test_df = build_allq_features(df, seed=3)
+    train_df, test_df = build_allq_features(df, seed=int(seed))
     print(train_df['ego_age_q'].value_counts())
+    print(test_df['ego_age_q'].value_counts())
     pickle.dump(train_df, open(feature_dir + "top5_{}_allq_s{}_train_features.df".format(features, seed), "wb"), -1)
     pickle.dump(test_df, open(feature_dir + "top5_{}_allq_s{}_test_features.df".format(features, seed), "wb"), -1)
