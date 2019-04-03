@@ -40,7 +40,8 @@ predict_targets = [
     'q4_closeness',
     'tie_str_score',
     'tie_str_rank',
-    'tie_str_class'
+    'tie_str_class',
+    'ego_age_q'
 ]
 
 parser = argparse.ArgumentParser()
@@ -218,8 +219,7 @@ if (args.predict_target in ['contact_type', 'tie_str_class']) or args.emc_clf:
     if args.macro_f1:
         clf_metric = autosklearn.metrics.f1_macro
 
-
-    automl.fit(train_X, train_y, metric=clf_metric)
+    automl.fit(train_X.copy(), train_y.copy(), metric=clf_metric)
 
 else:
     automl = AutoSklearnRegressor(
@@ -238,7 +238,13 @@ else:
 
 # refit() necessary when using cross-validation, see documentation:
 # https://automl.github.io/auto-sklearn/stable/api.html#autosklearn.classification.AutoSklearnClassifier.refit
-automl.refit(train_X.copy(), train_y.copy())
+if args.group_res:
+    resampler = RandomOverSampler(random_state=rand_seed)
+    X_res, y_res = resampler.fit_resample(train_X.copy(), train_y.copy())
+    automl.refit(X_res, y_res)
+else:
+    automl.refit(train_X.copy(), train_y.copy())
+    
 predictions = automl.predict(test_X)
 
 if (args.predict_target in ['contact_type', 'tie_str_class']) or args.emc_clf:
