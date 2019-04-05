@@ -63,6 +63,7 @@ parser.add_argument('--task_time', help='optionally specify task time')
 
 parser.add_argument('--log_loss', action='store_true', help='use log loss for classification')
 parser.add_argument('--weighted_f1', action='store_true', help='optionally makes classification loss weighted F1')
+parser.add_argument('--micro_f1', action='store_true', help='optionally makes classification loss micro F1')
 parser.add_argument('--macro_f1', action='store_true', help='optionally makes classification loss macro F1')
 
 parser.add_argument('--collapse_classes', action='store_true', help='optionally collapse relationship classes')
@@ -188,6 +189,7 @@ cv_params = {
 if args.group_res:
     cv_method = GroupKFold
     cv_params['random_state'] = rand_seed
+    
 # rebin for classification, 3 classes per previous literature
 if args.emc_clf:
     _, bins = pd.qcut(train_y.append(test_y), 3, labels=False, retbins=True)
@@ -216,6 +218,8 @@ if (args.predict_target in ['contact_type', 'tie_str_class']) or args.emc_clf:
         clf_metric = autosklearn.metrics.log_loss
     if args.weighted_f1:
         clf_metric = autosklearn.metrics.f1_weighted
+    if args.micro_f1:
+        clf_metric = autosklearn.metrics.f1_micro
     if args.macro_f1:
         clf_metric = autosklearn.metrics.f1_macro
 
@@ -250,6 +254,9 @@ predictions = automl.predict(test_X)
 if (args.predict_target in ['contact_type', 'tie_str_class']) or args.emc_clf:
     if args.weighted_f1:
         print("Weighted F1:", f1_score(test_y, predictions, average='weighted'))
+    if args.micro_f1:
+        print("Micro F1:", f1_score(test_y, predictions, average='micro'))
+
     else:
         print("Accuracy:", accuracy_score(test_y, predictions))
 else:
