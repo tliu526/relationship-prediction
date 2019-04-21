@@ -59,3 +59,30 @@ def build_corr_mat(corrs, p_vals, labels, title, alpha):
     plt.colorbar()
     plt.title(title)
     return plt
+
+
+def get_sig_features(cols, target, corrs, p_vals, exclude_cols=[], alpha=0.05):
+    """Returns dataframe of features significantly correlated with the target variable.
+    
+    Args:
+        cols (list): list of column names
+        target (str): target feature to extract correlations from
+        corrs (numpy.array): correlation matrix
+        p_vals (numpy.array): p value matrix
+        exclude_cols (list): features to exclude
+        alpha (float): significance threshold
+        
+    Returns:
+        pandas.DataFrame: df of significant features
+        
+    """
+    idx = np.where(cols == target)
+    sel_corrs = corrs[idx]
+    sel_p_vals = p_vals[idx]
+    sel_stats = np.transpose(np.vstack((sel_corrs, sel_p_vals)))
+    sel_df = pd.DataFrame(sel_stats, index=cols, columns=['corr', 'p'])
+    sig_features = sel_df.loc[sel_df['p'] < alpha]
+    sig_features = sig_features[~sig_features.index.isin(exclude_cols)]
+    sig_features = sig_features.sort_values(by='p')
+    
+    return sig_features
