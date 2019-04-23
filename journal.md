@@ -15,6 +15,116 @@
   - shell scripts: need a better way to track the entire data transformation pipeline, up to training
     - MakeFile?
 
+## 2019-04-22
+
+### Notes
+
+- Use seaborn [color picker](https://seaborn.pydata.org/tutorial/color_palettes.html) to have consistent plot formatting across all figures
+- still needed: summation of SHAP values across all our feature blocks
+- SHAP values: first level is contact type, second level is number of test data points, third level is number of features
+
+
+## 2019-04-21
+
+### Notes
+
+- it feels like the paper emphasis should be moving towards an SMS vs call shift in tendencies across age
+  - combine SHAP feature importances across call features vs SMS features
+- can perform these "aggregation" of feature blocks in the feature importance analysis to look at the four communication blocks as well
+- there needs to be more emphasis on automated machine learning as the novel method in the paper as well
+
+
+## 2019-04-20
+
+### Notes
+
+- reran random forest 
+- missing data imputation paragraph
+- began migration of figures to paper stats jupyter notebook (on quadcorn)
+
+
+## 2019-04-16
+
+### Notes
+
+- CCC structure, even within methods sections
+- acknowledge the previous sentence has been deleted
+- we construct paragraphs as a single idea
+- auto-sklearn deserves a standalone 
+- Srebro: links between SGD and support vector machines
+
+## 2019-04-15
+
+### Notes
+
+- Final experiment runs to tell the story:
+  - communication features
+  - age feature only
+  - communication + age features
+  - all features
+
+- Methods and Data should set up the story of relationship prediction better
+
+
+## 2019-04-12
+
+### Meeting with Sharath
+
+- insert the age/gender only run into the initial table of results to make the argument that there is an interaction effects between age and communication that improves performance
+- Sharath to rewrite introduction and related work by 4/18
+- 
+
+## 2019-04-10
+
+### Meeting notes
+
+- make the focus of the feature analysis the variation in age
+- talk about feature analysis only in passing, just to focus on the age correlation structure
+- focus story on the macro F1 in the subpopulation results
+- choice of top 5 and relationship classes should start from the introduction
+- can get help from Max and Jen on stuff, just make sure it is directed and a time frame is made clear 
+
+## 2019-04-09
+
+### Meeting plan
+
+- go over new subpopulation results
+- what would convince you, as a reader, of this subpopulation experiment?
+- we have numerous correlation matrices, which ones would be the most compelling to show?
+  - correlations between age and other features
+  - correlations between age quartiles and other features
+  - correlations between features and contact types (both across whole population and within each subgroup)
+
+- can show within subgroup correlation with contact types
+- can show box/violin plots of semantic location relationships with contact types
+
+- how to disentangle/align semantic location and demographic analysis with subpopulation experiment?
+
+- Mention feature selection in the related work -> provides the additional
+
+### Notes
+
+- ANOVA methodology:
+  - need to check for homoskedacity between groups (unlikely in Q4)
+  - 
+
+
+## 2019-04-08
+
+### Notes
+
+- do we want to consider a multi-label task?
+  - indicator for living separate
+  - indicator for family member
+
+## 2019-04-06
+
+### Notes
+
+- intersection of all 10 seeded run ids -> 12 participants
+- micro results look sensible, except for the q3 results which are no better than chance
+- microaveraging F1 in a multi-class setting produces same as accuracy, precision, recall: https://github.com/scikit-learn/scikit-learn/issues/5710
+
 ## 2019-04-03
 
 ### Meeting Notes
