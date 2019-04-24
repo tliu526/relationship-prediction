@@ -63,6 +63,7 @@ parser.add_argument('--task_time', help='optionally specify task time')
 
 parser.add_argument('--log_loss', action='store_true', help='use log loss for classification')
 parser.add_argument('--weighted_f1', action='store_true', help='optionally makes classification loss weighted F1')
+parser.add_argument('--micro_f1', action='store_true', help='optionally makes classification loss micro F1')
 parser.add_argument('--macro_f1', action='store_true', help='optionally makes classification loss macro F1')
 
 parser.add_argument('--collapse_classes', action='store_true', help='optionally collapse relationship classes')
@@ -70,6 +71,8 @@ parser.add_argument('--zimmerman_classes', action='store_true', help='use Zimmer
 parser.add_argument('--emc_clf', action='store_true', help='optionally makes EMC prediction task into classification')
 parser.add_argument('--tie_str_verystrong', action='store_true', help='optionally makes tie strength into 2-class \"very strong\" classification')
 parser.add_argument('--tie_str_medstrong', action='store_true', help='optionally makes tie strength into 2-class \"med strong\" classification')
+
+parser.add_argument('--age_gender_only', action='store_true', help='optionally makes a run with only age and gender as features')
 
 args = parser.parse_args()
 
@@ -134,6 +137,14 @@ train_X = train_data.drop(['combined_hash'] + predict_targets, axis=1, errors='i
 test_y = test_data[args.predict_target]
 test_X = test_data.drop(['pid', 'combined_hash'] + predict_targets, axis=1, errors='ignore')
 
+if args.age_gender_only:
+    keep_cols = ['pid', 'ego_age', 'ego_gender_female', 'ego_gender_male', 'ego_gender_other']
+    train_X = train_X[keep_cols]
+    test_X = test_X[keep_cols[1:]]
+    if args.test:
+        print(train_X.columns)
+        print(test_X.columns)
+
 if args.run_time:
     run_time = int(args.run_time)
 
@@ -188,6 +199,7 @@ cv_params = {
 if args.group_res:
     cv_method = GroupKFold
     cv_params['random_state'] = rand_seed
+    
 # rebin for classification, 3 classes per previous literature
 if args.emc_clf:
     _, bins = pd.qcut(train_y.append(test_y), 3, labels=False, retbins=True)
@@ -216,6 +228,8 @@ if (args.predict_target in ['contact_type', 'tie_str_class']) or args.emc_clf:
         clf_metric = autosklearn.metrics.log_loss
     if args.weighted_f1:
         clf_metric = autosklearn.metrics.f1_weighted
+    if args.micro_f1:
+        clf_metric = autosklearn.metrics.f1_micro
     if args.macro_f1:
         clf_metric = autosklearn.metrics.f1_macro
 
@@ -250,6 +264,9 @@ predictions = automl.predict(test_X)
 if (args.predict_target in ['contact_type', 'tie_str_class']) or args.emc_clf:
     if args.weighted_f1:
         print("Weighted F1:", f1_score(test_y, predictions, average='weighted'))
+    if args.micro_f1:
+        print("Micro F1:", f1_score(test_y, predictions, average='micro'))
+
     else:
         print("Accuracy:", accuracy_score(test_y, predictions))
 else:
