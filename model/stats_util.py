@@ -3,6 +3,7 @@ Statistics convenience methods.
 """
 
 import numpy as np
+import pandas as pd
 
 from rpy2.robjects import r, pandas2ri
 import rpy2.robjects as robjects

@@ -72,6 +72,8 @@ parser.add_argument('--emc_clf', action='store_true', help='optionally makes EMC
 parser.add_argument('--tie_str_verystrong', action='store_true', help='optionally makes tie strength into 2-class \"very strong\" classification')
 parser.add_argument('--tie_str_medstrong', action='store_true', help='optionally makes tie strength into 2-class \"med strong\" classification')
 
+parser.add_argument('--age_gender_only', action='store_true', help='optionally makes a run with only age and gender as features')
+
 args = parser.parse_args()
 
 # load data
@@ -134,6 +136,14 @@ train_y = train_data[args.predict_target]
 train_X = train_data.drop(['combined_hash'] + predict_targets, axis=1, errors='ignore')
 test_y = test_data[args.predict_target]
 test_X = test_data.drop(['pid', 'combined_hash'] + predict_targets, axis=1, errors='ignore')
+
+if args.age_gender_only:
+    keep_cols = ['pid', 'ego_age', 'ego_gender_female', 'ego_gender_male', 'ego_gender_other']
+    train_X = train_X[keep_cols]
+    test_X = test_X[keep_cols[1:]]
+    if args.test:
+        print(train_X.columns)
+        print(test_X.columns)
 
 if args.run_time:
     run_time = int(args.run_time)
